@@ -1,0 +1,501 @@
+/* ============================================================
+   src/index.css
+   Tailwind v4 entry + design tokens + global styles
+   Ported 1:1 from the original <style> blocks and inline
+   tailwind.config in index.html / about_us.html
+   ============================================================ */
+
+@import "tailwindcss";
+
+/* ------------------------------------------------------------
+   Design tokens (equivalent of the old inline tailwind.config)
+   In Tailwind v4 these map to utility class names such as:
+     bg-ink-950, text-brand-600, shadow-sidebar, max-w-container,
+     font-sans, font-display, font-script
+   ------------------------------------------------------------ */
+@theme {
+  /* Fonts */
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Playfair Display", serif;
+  --font-script: "Dancing Script", cursive;
+
+  /* ink */
+  --color-ink-950: #0a0f1e;
+  --color-ink-900: #0d1326;
+  --color-ink-800: #131a30;
+
+  /* brand */
+  --color-brand-50: #fff1f4;
+  --color-brand-100: #ffe0e7;
+  --color-brand-500: #f1385c;
+  --color-brand-600: #e31b54;
+  --color-brand-700: #c10f45;
+
+  /* navy */
+  --color-navy-700: #1b2559;
+  --color-navy-800: #141a38;
+  --color-navy-900: #0f1428;
+
+  /* Shadows */
+  --shadow-card: 0 1px 2px rgba(16, 24, 40, 0.06),
+    0 1px 3px rgba(16, 24, 40, 0.08);
+  --shadow-sidebar: 0 20px 25px -5px rgba(16, 24, 40, 0.1),
+    0 8px 10px -6px rgba(16, 24, 40, 0.08);
+  --shadow-pop: 0 10px 30px -10px rgba(16, 24, 40, 0.25);
+
+  /* Max widths */
+  --max-width-container: 1440px;
+}
+
+/* ------------------------------------------------------------
+   Global reset-level rules
+   ------------------------------------------------------------ */
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  font-family: "Inter", ui-sans-serif, system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  color: #0f172a;
+  overflow-x: hidden;
+}
+
+/* ------------------------------------------------------------
+   Reusable component classes
+   ------------------------------------------------------------ */
+
+/* Page shell — consistent horizontal gutters up to 1440px */
+.shell {
+  max-width: 1440px;
+  margin-left: auto;
+  margin-right: auto;
+  padding-left: 1.25rem;
+  padding-right: 1.25rem;
+}
+
+@media (min-width: 1024px) {
+  .shell {
+    padding-left: 2.5rem;
+    padding-right: 2.5rem;
+  }
+}
+
+/* Buttons */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  font-weight: 600;
+  border-radius: 0.75rem;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+
+.btn-primary {
+  background-color: #4f46e5;
+  color: #fff;
+  box-shadow: 0 4px 14px -2px rgba(79, 70, 229, 0.45);
+}
+
+.btn-primary:hover {
+  background-color: #4338ca;
+  transform: translateY(-1px);
+}
+
+.btn-dark {
+  background-color: #0b0f19;
+  color: #fff;
+}
+
+.btn-dark:hover {
+  background-color: #1a1f2e;
+}
+
+.btn-outline {
+  background-color: #fff;
+  color: #1e1b4b;
+  border: 1px solid #e2e8f0;
+}
+
+.btn-outline:hover {
+  border-color: #cbd5e1;
+  background-color: #f8fafc;
+}
+
+/* Badges */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  font-size: 0.75rem;
+  font-weight: 700;
+  padding: 0.3rem 0.75rem;
+  border-radius: 9999px;
+  letter-spacing: 0.02em;
+}
+
+.badge-bestseller {
+  background: linear-gradient(135deg, #c2740a, #8a4b06);
+  color: #ffe9be;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+}
+
+.badge-cohort {
+  background: linear-gradient(135deg, #6d5ce0, #4a34c7);
+  color: #ede9fe;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+}
+
+.badge-new {
+  background-color: #4f46e5;
+  color: #fff;
+  font-size: 0.625rem;
+  padding: 0.15rem 0.5rem;
+  border-radius: 9999px;
+}
+
+.badge-pill {
+  background-color: #f1f5f9;
+  color: #334155;
+  font-size: 0.7rem;
+  font-weight: 600;
+  padding: 0.35rem 0.75rem;
+  border-radius: 9999px;
+}
+
+/* Cards */
+.card {
+  background-color: #fff;
+  border: 1px solid #eceff3;
+  border-radius: 1rem;
+  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.05);
+}
+
+/* Nav link */
+.nav-link {
+  position: relative;
+  color: #1e293b;
+  font-weight: 500;
+  font-size: 0.925rem;
+}
+
+.nav-link:hover {
+  color: #0f172a;
+}
+
+/* Scrollbar hide utility */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* Section headings */
+.section-title {
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: #0f172a;
+}
+
+/* Focus visibility */
+a:focus-visible,
+button:focus-visible {
+  outline: 2px solid #4f46e5;
+  outline-offset: 2px;
+}
+
+/* Plan toggle buttons */
+.plan-btn {
+  border: 1px solid #e2e8f0;
+  background-color: #f8fafc;
+  color: #475569;
+  border-radius: 0.65rem;
+  padding: 0.65rem 0.5rem;
+  font-size: 0.8rem;
+  font-weight: 700;
+  text-align: center;
+  transition: all 0.15s ease;
+}
+
+.plan-btn.active {
+  background-color: #fff;
+  color: #0f172a;
+  border-color: #0f172a;
+}
+
+/* Tech chip (sidebar promo) */
+.tech-chip {
+  width: 2.3rem;
+  height: 2.3rem;
+  border-radius: 9999px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.35);
+}
+
+/* Font helpers */
+.font-display {
+  font-family: "Playfair Display", serif;
+}
+
+.font-script {
+  font-family: "Dancing Script", cursive;
+}
+
+/* Decorative patterns */
+.dot-pattern {
+  background-image: radial-gradient(
+    circle,
+    rgba(255, 255, 255, 0.14) 1.5px,
+    transparent 1.5px
+  );
+  background-size: 22px 22px;
+}
+
+.corner-flourish {
+  width: 34px;
+  height: 34px;
+  border-top: 2px solid #c9a876;
+  border-left: 2px solid #c9a876;
+}
+
+/* ------------------------------------------------------------
+   Layout helpers
+   ------------------------------------------------------------ */
+.min-w-0 {
+  min-width: 0;
+}
+
+.break-words {
+  overflow-wrap: break-word;
+  word-wrap: break-word;
+  word-break: break-word;
+}
+
+@media (min-width: 1024px) {
+  .sticky-sidebar {
+    position: sticky;
+    top: 6rem;
+  }
+}
+
+/* ------------------------------------------------------------
+   Responsive fixes (ported from the original <style> blocks)
+   ------------------------------------------------------------ */
+
+/* Hero bleed (dark background column on desktop PDP) */
+@media (max-width: 1023px) {
+  .hero-bleed {
+    display: none;
+  }
+}
+
+.hero-padding {
+  /* applied at <1024px via class; kept for parity */
+}
+
+@media (max-width: 1023px) {
+  .hero-padding {
+    padding-left: 1.25rem;
+    padding-right: 1.25rem;
+  }
+}
+
+/* Sidebar card shadow + mobile spacing */
+.sidebar-card .card {
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+}
+
+@media (max-width: 1023px) {
+  .sidebar-card {
+    margin-top: 2rem;
+  }
+}
+
+/* Prevent SVGs from overflowing */
+svg {
+  max-width: 100%;
+  height: auto;
+}
+
+/* Hero title tightening on mobile */
+@media (max-width: 640px) {
+  .hero-title {
+    font-size: 1.75rem !important;
+    line-height: 1.2 !important;
+  }
+
+  .hero-desc {
+    font-size: 14px !important;
+  }
+}
+
+/* Grid collapses */
+@media (max-width: 640px) {
+  .highlight-grid,
+  .project-grid,
+  .career-grid,
+  .testimonial-grid,
+  .certificate-grid,
+  .cta-grid,
+  .reviews-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .learn-section {
+    padding-left: 1rem;
+    padding-right: 1rem;
+  }
+
+  .includes-grid {
+    grid-template-columns: 1fr;
+    gap: 0.75rem;
+  }
+
+  .highlight-card {
+    padding: 1.25rem 0.75rem 1rem;
+  }
+
+  .footer-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 1023px) {
+  .instructor-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .faq-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .cta-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .footer-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 768px) {
+  .pillar-flex {
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+
+  .pillar-icon {
+    flex-direction: row !important;
+    align-items: flex-start !important;
+  }
+
+  .pillar-line {
+    display: none;
+  }
+}
+
+@media (max-width: 480px) {
+  .stats-grid {
+    grid-template-columns: repeat(2, 1fr) !important;
+  }
+
+  .learners-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .meta-row {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.5rem;
+  }
+
+  .pill-container {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .breadcrumb {
+    font-size: 12px;
+  }
+
+  .career-stats-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 380px) {
+  .logo-text {
+    font-size: 14px;
+  }
+}
+
+/* Layout primitives — keep flex/grid children from overflowing */
+.grid {
+  min-width: 0;
+}
+
+.flex {
+  min-width: 0;
+}
+
+.course-card {
+  overflow: hidden;
+}
+
+.project-card,
+.testimonial-card {
+  display: flex;
+  flex-direction: column;
+}
+
+.pill-container {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+/* Mobile menu scroll safety */
+#mobileMenu {
+  max-height: calc(100vh - 76px);
+  overflow-y: auto;
+}
+
+/* Sticky header baseline (Tailwind classes on <header> also handle this) */
+header {
+  position: sticky;
+  top: 0;
+  z-index: 50;
+}
+
+/* FAQ tabs horizontal scroll on mobile */
+@media (max-width: 1023px) {
+  .faq-tabs-scroll {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+
+  .faq-tabs-scroll::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+
+
+
+
+
+.about-hero-grid {
+  background-image:
+    linear-gradient(to right, rgba(255, 255, 255, 0.06) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(255, 255, 255, 0.06) 1px, transparent 1px);
+  background-size: 56px 56px;
+  mask-image: radial-gradient(ellipse at center, black 40%, transparent 80%);
+  -webkit-mask-image: radial-gradient(ellipse at center, black 40%, transparent 80%);
+}
