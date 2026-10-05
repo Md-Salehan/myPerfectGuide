@@ -499,3 +499,13 @@ header {
   mask-image: radial-gradient(ellipse at center, black 40%, transparent 80%);
   -webkit-mask-image: radial-gradient(ellipse at center, black 40%, transparent 80%);
 }
+
+
+.zig {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: -7px;
+  height: 7px;
+  background: conic-gradient(from 135deg at top, #0000, #fff 1deg 89deg, #0000 90deg) 50% / 12px 100%;
+}

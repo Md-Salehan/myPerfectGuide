@@ -7,13 +7,7 @@ export const ROUTES = {
   /** About Us page — migrated from about_us.html. */
   ABOUT: "/about",
   CONTACT: "/contact",
-  /**
-   * Product Detail routes, one per course.
-   * Course 1 is the page currently being migrated
-   * (the Complete Taxation & Compliance Course).
-   * Courses 2–5 are reserved slots matching the four other
-   * courses listed in the footer COURSES column.
-   */
+  CHECKOUT: "/checkout",
   COURSE_1: "/courses/complete-taxation-compliance",
   COURSE_2: "/courses/digital-marketing",
   COURSE_3: "/courses/itr-filing",
