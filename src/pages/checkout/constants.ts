@@ -17,7 +17,7 @@
 //   - services/mocks/checkoutMocks.ts  (for regex parity)
 // ============================================================
 
-import type { Channel, PlanId } from "./types";
+import type { OTPChannel, PlanType } from "./types";
 
 /* ------------------------------------------------------------
    Validation regexes
@@ -77,10 +77,10 @@ export const COUPON_MAX_LENGTH = 16;
    ------------------------------------------------------------ */
 
 /** Applied when `?plan=` is missing or unrecognised. */
-export const DEFAULT_PLAN: PlanId = "year";
+export const DEFAULT_PLAN: PlanType = "year";
 
 /** Applied when no channel has been chosen yet. */
-export const DEFAULT_CHANNEL: Channel = "wa";
+export const DEFAULT_OTP_CHANNEL: OTPChannel = "wa";
 
 /* ------------------------------------------------------------
    GST states
@@ -92,17 +92,17 @@ export const DEFAULT_CHANNEL: Channel = "wa";
    ------------------------------------------------------------ */
 
 export const GST_STATES: readonly string[] = [
-  "Andhra Pradesh",
-  "Bihar",
-  "Delhi",
-  "Gujarat",
-  "Karnataka",
-  "Kerala",
-  "Maharashtra",
-  "Tamil Nadu",
-  "Telangana",
-  "Uttar Pradesh",
-  "West Bengal",
+    "Andhra Pradesh",
+    "Bihar",
+    "Delhi",
+    "Gujarat",
+    "Karnataka",
+    "Kerala",
+    "Maharashtra",
+    "Tamil Nadu",
+    "Telangana",
+    "Uttar Pradesh",
+    "West Bengal",
 ] as const;
 
 /* ------------------------------------------------------------

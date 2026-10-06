@@ -1,50 +1,94 @@
 // ============================================================
 // src/pages/checkout/sections/VerifySection.tsx
-// Phone verification form.
+// Channel-aware verification form.
 //
-// Controlled: the parent owns phone, channel, error, sending.
-// This section reports changes up and runs no API calls of
-// its own. The send flow, the OTP modal, and the email flow
-// all live in CheckoutPage.
+// Owns:
+//   - which channel the user is editing ("phone" | "email")
+//   - the inline input for the active channel
+//   - the SMS / WhatsApp chips (phone only)
+//   - the "Continue With …" submit
+//
+// Does NOT own:
+//   - the OTP modal (lives in CheckoutPage)
+//   - the OTP mutations (called by CheckoutPage via onSendOtp)
+//   - verifiedBy (parent owns it)
+//
+// The parent passes `onSendOtp(channel)`; the parent runs the
+// correct mutation and, on success, opens the unified modal.
+// This keeps the section channel-agnostic above the boundary
+// and keeps every mutation call in one place (CheckoutPage).
 // ============================================================
 
-import type { Channel } from "../types";
+import { useCallback, useState } from "react";
+
+import type { OTPChannel, VerifyChannel, VerifiedBy } from "../types";
+
+// Re-export so CheckoutPage can import { type VerifyChannel }
+// from this module without reaching into types.ts.
+export type { VerifyChannel };
 
 interface VerifySectionProps {
   /** Current phone number (10 digits, no prefix). */
   phone: string;
-  /** Current channel. */
-  channel: Channel;
-  /** Inline error message for the phone input, or "" for none. */
+  /** Current email address. */
+  email: string;
+  /** Current SMS/WhatsApp channel. */
+  channel: OTPChannel;
+  /** How the user proved ownership, or null. */
+  verifiedBy: VerifiedBy;
+  /** Inline error message for the active input, or "" for none. */
   error: string;
   /** True while the OTP send call is in flight. */
   sending: boolean;
+
   /** Called when the user edits the phone field. */
   onPhoneChange: (value: string) => void;
-  /** Called when the user picks a channel. */
-  onChannelChange: (channel: Channel) => void;
-  /** Called when "Continue With Phone" is submitted. */
-  onSubmit: () => void;
-  /** Called when "Verify using email" is clicked. */
-  onEmailClick: () => void;
+  /** Called when the user edits the email field. */
+  onEmailChange: (value: string) => void;
+  /** Called when the user picks an SMS/WhatsApp channel. */
+  onChannelChange: (channel: OTPChannel) => void;
+  /** Called when the user clears an inline error. */
+  onClearError: () => void;
+
+  /**
+   * Called when the user submits. The parent runs the correct
+   * mutation based on `channel`, and on success opens the
+   * unified OTP modal.
+   */
+  onSendOtp: (channel: VerifyChannel) => void;
 }
 
 export function VerifySection({
   phone,
+  email,
   channel,
+  verifiedBy,
   error,
   sending,
   onPhoneChange,
+  onEmailChange,
   onChannelChange,
-  onSubmit,
-  onEmailClick,
+  onClearError,
+  onSendOtp,
 }: VerifySectionProps) {
+  // Which channel the user is currently editing. Separate from
+  // `verifiedBy` — the user can switch inputs after verifying.
+  const [activeChannel, setActiveChannel] = useState<VerifyChannel>("phone");
+
   const hasError = error.length > 0;
+
+  const switchTo = useCallback(
+    (next: VerifyChannel) => {
+      setActiveChannel(next);
+      onClearError();
+    },
+    [onClearError],
+  );
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (sending) return;
-    onSubmit();
+    if (sending || verifiedBy !== null) return;
+    onSendOtp(activeChannel);
   };
 
   return (
@@ -58,81 +102,30 @@ export function VerifySection({
           Verify your details
         </h3>
 
-        {/* ---------- Phone input with +91 prefix ---------- */}
-        <div className="mt-[8px] flex h-[45px] lg:h-[40px] rounded-md border border-slate-200 overflow-hidden">
-          <button
-            type="button"
-            className="w-[81px] lg:w-[72px] flex items-center justify-center gap-1 text-[14px] font-medium border-r border-slate-200"
+        {/* ---------- Channel tabs ---------- */}
+        <div className="mt-[10px] flex gap-2">
+          <ChannelTab
+            active={activeChannel === "phone"}
+            onClick={() => switchTo("phone")}
           >
-            +91
-            <svg
-              className="w-3.5 h-3.5"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth={2}
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              aria-hidden="true"
-            >
-              <path d="M7 15V4m0 0L3 8m4-4 4 4M17 9v11m0 0 4-4m-4 4-4-4" />
-            </svg>
-          </button>
-          <input
-            type="tel"
-            inputMode="numeric"
-            autoComplete="tel-national"
-            maxLength={10}
-            value={phone}
-            onChange={(e) => {
-              const value = e.target.value.replace(/\D/g, "").slice(0, 10);
-              onPhoneChange(value);
-            }}
-            disabled={sending}
-            placeholder="Enter your phone number"
-            aria-invalid={hasError || undefined}
-            aria-describedby={hasError ? "checkout-phone-error" : undefined}
-            className="flex-1 min-w-0 px-[11px] text-[14px] placeholder:text-slate-500 focus:outline-none disabled:opacity-60"
-          />
+            Phone
+          </ChannelTab>
+          <ChannelTab
+            active={activeChannel === "email"}
+            onClick={() => switchTo("email")}
+          >
+            Email
+          </ChannelTab>
         </div>
 
-        {/* ---------- Phone error ---------- */}
-        {hasError && (
-          <p
-            id="checkout-phone-error"
-            role="alert"
-            className="mt-[8px] lg:mt-[7px] text-[13px] lg:text-[12px] leading-4 text-rose-500"
-          >
-            {error}
-          </p>
-        )}
-
-        {/* ---------- Channel chips ---------- */}
-        <div className="mt-[14px] lg:mt-[12px] flex gap-3">
-          <ChannelChip
-            active={channel === "sms"}
-            onClick={() => onChannelChange("sms")}
-            icon={
-              <svg
-                className="w-3.5 h-3.5"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth={2}
-                strokeLinejoin="round"
-                aria-hidden="true"
-              >
-                <rect x="6" y="2" width="12" height="20" rx="2" />
-              </svg>
-            }
-          >
-            SMS
-          </ChannelChip>
-
-          <ChannelChip
-            active={channel === "wa"}
-            onClick={() => onChannelChange("wa")}
-            icon={
+        {/* ---------- Phone input ---------- */}
+        {activeChannel === "phone" && (
+          <div className="mt-[8px] flex h-[45px] lg:h-[40px] rounded-md border border-slate-200 overflow-hidden">
+            <button
+              type="button"
+              className="w-[81px] lg:w-[72px] flex items-center justify-center gap-1 text-[14px] font-medium border-r border-slate-200"
+            >
+              +91
               <svg
                 className="w-3.5 h-3.5"
                 viewBox="0 0 24 24"
@@ -143,22 +136,111 @@ export function VerifySection({
                 strokeLinejoin="round"
                 aria-hidden="true"
               >
-                <path d="M3 21l1.7-5A9 9 0 1 1 8 19.3L3 21Z" />
-                <path d="M9 9.5c0 3 2.500 5.500 5.500 5.500l1-1.500-2-1-.8.8c-.8-.4-1.600-1.200-2-2l.8-.8-1-2L9 9.500Z" />
+                <path d="M7 15V4m0 0L3 8m4-4 4 4M17 9v11m0 0 4-4m-4 4-4-4" />
               </svg>
-            }
-          >
-            Whatsapp
-          </ChannelChip>
-        </div>
+            </button>
+            <input
+              type="tel"
+              inputMode="numeric"
+              autoComplete="tel-national"
+              maxLength={10}
+              value={phone}
+              onChange={(e) => {
+                const value = e.target.value.replace(/\D/g, "").slice(0, 10);
+                onPhoneChange(value);
+              }}
+              disabled={sending}
+              placeholder="Enter your phone number"
+              aria-invalid={hasError || undefined}
+              aria-describedby={hasError ? "checkout-verify-error" : undefined}
+              className="flex-1 min-w-0 px-[11px] text-[14px] placeholder:text-slate-500 focus:outline-none disabled:opacity-60"
+            />
+          </div>
+        )}
 
-        {/* ---------- Continue button ---------- */}
+        {/* ---------- Email input ---------- */}
+        {activeChannel === "email" && (
+          <div className="mt-[8px]">
+            <input
+              type="email"
+              inputMode="email"
+              autoComplete="email"
+              value={email}
+              onChange={(e) => onEmailChange(e.target.value)}
+              disabled={sending}
+              placeholder="you@example.com"
+              aria-invalid={hasError || undefined}
+              aria-describedby={hasError ? "checkout-verify-error" : undefined}
+              className="w-full h-[45px] lg:h-[40px] px-[11px] rounded-md border border-slate-200 text-[14px] placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-200 disabled:opacity-60"
+            />
+          </div>
+        )}
+
+        {/* ---------- Inline error ---------- */}
+        {hasError && (
+          <p
+            id="checkout-verify-error"
+            role="alert"
+            className="mt-[8px] lg:mt-[7px] text-[13px] lg:text-[12px] leading-4 text-rose-500"
+          >
+            {error}
+          </p>
+        )}
+
+        {/* ---------- SMS / WhatsApp chips (phone only) ---------- */}
+        {activeChannel === "phone" && (
+          <div className="mt-[14px] lg:mt-[12px] flex gap-3">
+            <ChannelChip
+              active={channel === "sms"}
+              onClick={() => onChannelChange("sms")}
+              icon={
+                <svg
+                  className="w-3.5 h-3.5"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth={2}
+                  strokeLinejoin="round"
+                  aria-hidden="true"
+                >
+                  <rect x="6" y="2" width="12" height="20" rx="2" />
+                </svg>
+              }
+            >
+              SMS
+            </ChannelChip>
+
+            <ChannelChip
+              active={channel === "wa"}
+              onClick={() => onChannelChange("wa")}
+              icon={
+                <svg
+                  className="w-3.5 h-3.5"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth={2}
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  aria-hidden="true"
+                >
+                  <path d="M3 21l1.7-5A9 9 0 1 1 8 19.3L3 21Z" />
+                  <path d="M9 9.5c0 3 2.500 5.500 5.500 5.500l1-1.500-2-1-.8.8c-.8-.4-1.600-1.200-2-2l.8-.8-1-2L9 9.500Z" />
+                </svg>
+              }
+            >
+              Whatsapp
+            </ChannelChip>
+          </div>
+        )}
+
+        {/* ---------- Send OTP button ---------- */}
         <button
           type="submit"
-          disabled={sending}
+          disabled={sending || verifiedBy !== null}
           className={[
             "mt-[16px] lg:mt-[14px] w-full h-[40px] lg:h-[36px] rounded-md text-white text-[14px] font-medium flex items-center justify-center gap-3 transition",
-            sending
+            sending || verifiedBy !== null
               ? "bg-indigo-300 cursor-not-allowed"
               : "bg-indigo-600 hover:bg-indigo-700",
           ].join(" ")}
@@ -174,27 +256,49 @@ export function VerifySection({
           >
             <rect x="6" y="2" width="12" height="20" rx="2" />
           </svg>
-          {sending ? "Sending…" : "Continue With Phone"}
+          {sending
+            ? "Sending…"
+            : verifiedBy !== null
+              ? "Verified"
+              : activeChannel === "phone"
+                ? "Continue With Phone"
+                : "Continue With Email"}
         </button>
-
-        {/* ---------- Email link ---------- */}
-        <p className="mt-[18px] mb-[8px] text-center text-[14px]">
-          <span className="text-slate-500">OR,&nbsp;</span>
-          <button
-            type="button"
-            onClick={onEmailClick}
-            className="font-medium text-indigo-600 hover:text-indigo-700"
-          >
-            Verify using email
-          </button>
-        </p>
       </form>
     </div>
   );
 }
 
 /* ------------------------------------------------------------
-   Internal: channel chip
+   Internal: channel tab (Phone / Email)
+   ------------------------------------------------------------ */
+
+interface ChannelTabProps {
+  active: boolean;
+  onClick: () => void;
+  children: React.ReactNode;
+}
+
+function ChannelTab({ active, onClick, children }: ChannelTabProps) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={active}
+      className={[
+        "flex-1 h-[34px] rounded-md text-[14px] font-medium transition border",
+        active
+          ? "bg-indigo-50 border-indigo-200 text-indigo-700"
+          : "bg-white border-slate-200 text-slate-600 hover:bg-slate-50",
+      ].join(" ")}
+    >
+      {children}
+    </button>
+  );
+}
+
+/* ------------------------------------------------------------
+   Internal: SMS / WhatsApp chip
    ------------------------------------------------------------ */
 
 interface ChannelChipProps {

@@ -1,14 +1,24 @@
 // ============================================================
-// src/pages/checkout/modals/EmailOtpModal.tsx
-// Email OTP entry modal.
+// src/pages/checkout/modals/OtpModal.tsx
+// Unified, channel-agnostic OTP verification modal.
 //
-// Structurally identical to PhoneOtpModal — the only
-// differences are the identity the flow is bound to (email
-// instead of phone) and the two RTK Query hooks it uses.
+// Handles BOTH phone and email verification through a single
+// implementation. The parent (CheckoutPage, via VerifySection)
+// supplies:
+//   - `channel`  : "phone" | "email"  — used only for copy
+//   - `identity` : the phone number or email the code was sent to
+//   - `sendOtp`  : callback to (re)send the code for this channel
+//   - `verifyOtp`: callback to verify the code for this channel
 //
-// Kept as a separate file (rather than a `channel` prop on a
-// shared modal) because sharing would require a hook lookup
-// table and would make both call sites harder to read.
+// This modal deliberately does NOT import any RTK Query hooks.
+// It is purely presentational + flow-driven, so the same
+// component serves both channels without branching on which
+// mutation to call. All channel-specific wiring lives in
+// CheckoutPage / VerifySection.
+//
+// Reuses:
+//   - <Modal />      (src/components/common/Modal.tsx)
+//   - <OtpInput />   (src/components/common/OtpInput.tsx)
 // ============================================================
 
 import { useEffect, useRef, useState } from "react";
@@ -17,38 +27,63 @@ import { Modal } from "../../../components/common/Modal";
 import { OtpInput } from "../../../components/common/OtpInput";
 
 import {
-  useSendEmailOtpMutation,
-  useVerifyEmailOtpMutation,
-} from "../../../services/checkoutApi";
-
-import {
   OTP_LENGTH,
   RESEND_COOLDOWN_SECONDS,
 } from "../constants";
 
-interface EmailOtpModalProps {
+import type { VerifyChannel } from "../types";
+
+/** The verification channel this modal is currently driving. */
+export type OtpChannel = VerifyChannel;
+
+interface OtpModalProps {
   /** Whether the modal is visible. */
   open: boolean;
-  /** Email address the code was sent to. */
-  email: string;
+  /** Which channel is being verified. Drives copy only. */
+  channel: OtpChannel;
+  /** The phone number or email the code was sent to. */
+  identity: string;
   /**
    * Dev hint code returned by the mock send call. When absent,
    * the hint is not rendered. Real backends omit this.
    */
   devCode?: string;
+  /**
+   * Send (or resend) the OTP for `channel` + `identity`.
+   * Resolves with the fresh devCode (if any) so the modal can
+   * update its hint. Should reject on failure.
+   */
+  sendOtp: (args: {
+    channel: OtpChannel;
+    identity: string;
+  }) => Promise<{ devCode?: string }>;
+  /**
+   * Verify the OTP for `channel` + `identity`.
+   * Resolves with `{ verified: true }` on success, or
+   * `{ verified: false, reason?: string }` on a wrong code.
+   * Should reject on a network-shaped failure.
+   */
+  verifyOtp: (args: {
+    channel: OtpChannel;
+    identity: string;
+    otp: string;
+  }) => Promise<{ verified: boolean; reason?: string }>;
   /** Called when verification succeeds. Parent closes the modal. */
   onSuccess: () => void;
   /** Called when the user requests to close (X / Escape / backdrop). */
   onClose: () => void;
 }
 
-export function EmailOtpModal({
+export function OtpModal({
   open,
-  email,
+  channel,
+  identity,
   devCode,
+  sendOtp,
+  verifyOtp,
   onSuccess,
   onClose,
-}: EmailOtpModalProps) {
+}: OtpModalProps) {
   /* ---------- Local state ---------- */
 
   const [digits, setDigits] = useState<string[]>(() =>
@@ -58,15 +93,17 @@ export function EmailOtpModal({
   const [error, setError] = useState<string | null>(null);
   const [resendCooldown, setResendCooldown] = useState(RESEND_COOLDOWN_SECONDS);
   const [resending, setResending] = useState(false);
+  // Local dev-hint mirror, so a resend can update it.
   const [hintCode, setHintCode] = useState<string | undefined>(devCode);
 
-  const [verifyEmailOtp] = useVerifyEmailOtpMutation();
-  const [sendEmailOtp] = useSendEmailOtpMutation();
-
+  // Ref to avoid a stale closure inside the cooldown timer.
   const cooldownRef = useRef<number>(RESEND_COOLDOWN_SECONDS);
 
-  /* ---------- Reset on open ---------- */
+  /* ---------- Reset state on open ---------- */
 
+  // When the modal opens, clear digits, errors, and restart the
+  // resend cooldown. When it closes, we leave state intact —
+  // the parent unmounts us anyway.
   useEffect(() => {
     if (!open) return;
     setDigits(Array.from({ length: OTP_LENGTH }, () => ""));
@@ -100,6 +137,14 @@ export function EmailOtpModal({
   const isComplete = code.length === OTP_LENGTH && digits.every(Boolean);
   const canResend = !resending && !verifying && resendCooldown === 0;
 
+  // Channel-specific copy. This is the ONLY place the modal
+  // branches on `channel` — everything else is channel-agnostic.
+  const title = channel === "phone" ? "Verify your phone" : "Verify your email";
+  const description =
+    channel === "phone"
+      ? `Enter the ${OTP_LENGTH}-digit code sent to +91 ${identity}.`
+      : `Enter the ${OTP_LENGTH}-digit code sent to ${identity}.`;
+
   /* ---------- Handlers ---------- */
 
   const handleSubmit = async () => {
@@ -108,7 +153,7 @@ export function EmailOtpModal({
     setError(null);
 
     try {
-      const result = await verifyEmailOtp({ email, otp: code }).unwrap();
+      const result = await verifyOtp({ channel, identity, otp: code });
       if (result.verified) {
         onSuccess();
       } else {
@@ -127,7 +172,7 @@ export function EmailOtpModal({
     setError(null);
 
     try {
-      const result = await sendEmailOtp({ email }).unwrap();
+      const result = await sendOtp({ channel, identity });
       if (result.devCode) {
         setHintCode(result.devCode);
       }
@@ -141,7 +186,7 @@ export function EmailOtpModal({
   };
 
   const handleClose = () => {
-    if (verifying) return;
+    if (verifying) return; // block close while verifying
     onClose();
   };
 
@@ -151,11 +196,11 @@ export function EmailOtpModal({
     <Modal
       open={open}
       onClose={handleClose}
-      title="Verify your email"
-      description={`Enter the ${OTP_LENGTH}-digit code sent to ${email}.`}
+      title={title}
+      description={description}
     >
       <div className="space-y-5">
-        {/* OTP input */}
+        {/* OTP input — the ONLY OTP input in the app */}
         <OtpInput
           value={digits}
           onChange={(next) => {
