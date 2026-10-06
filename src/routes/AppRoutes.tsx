@@ -27,6 +27,7 @@ export function AppRoutes() {
   return (
     <Routes>
       <Route path={ROUTES.CHECKOUT} element={<CheckoutPage />} />
+      
       <Route element={<MainLayout />}>
 
         <Route index element={<Navigate to={ROUTES.COURSE_1} replace />} />

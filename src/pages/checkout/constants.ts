@@ -4,20 +4,46 @@
 //
 // This file deliberately does NOT contain:
 //   - the coupon catalogue (server / mock owns it)
-//   - the product catalogue (server / mock owns it)
+//   - the product catalogue (src/data/courses.ts owns it)
 //   - the GSTIN checksum algorithm (server validates; client
 //     only runs a shape regex)
 //   - any sessionStorage key (persistence was removed)
+//
+// Post-refactor, this file also owns the *route* and *URL
+// param names* the checkout flow uses, so the navigator
+// (SidebarEnrollCard / product-detail pages) and the resolver
+// (utils.resolveCourseFromParams) cannot drift apart.
 //
 // Consumed by:
 //   - pages/checkout/utils.ts
 //   - pages/checkout/CheckoutPage.tsx
 //   - pages/checkout/sections/*.tsx
 //   - pages/checkout/modals/*.tsx
+//   - components/product/SidebarEnrollCard.tsx
 //   - services/mocks/checkoutMocks.ts  (for regex parity)
 // ============================================================
 
 import type { OTPChannel, PlanType } from "./types";
+
+/* ------------------------------------------------------------
+   Routing / URL shape
+   ------------------------------------------------------------
+   The checkout page is reached at:
+     {CHECKOUT_ROUTE}?{COURSE_PARAM}=<courseId>&{PLAN_PARAM}=<plan>
+
+   These are the ONLY identifiers the URL carries. Everything
+   else about the course / plan is resolved from
+   `src/data/courses.ts` inside the checkout page.
+   ------------------------------------------------------------ */
+
+/** Path of the checkout / order page. */
+export const CHECKOUT_ROUTE = "/order";
+
+/** Query param carrying the selected course id. */
+export const CHECKOUT_COURSE_PARAM = "courseId";
+
+/** Query param carrying the selected plan id. */
+export const CHECKOUT_PLAN_PARAM = "plan";
 
 /* ------------------------------------------------------------
    Validation regexes
@@ -76,7 +102,15 @@ export const COUPON_MAX_LENGTH = 16;
    Defaults — used when the URL omits the corresponding param
    ------------------------------------------------------------ */
 
-/** Applied when `?plan=` is missing or unrecognised. */
+/**
+ * Applied when `?plan=` is missing.
+ *
+ * NOTE: this is only a *fallback for a missing param*. If the
+ * URL names a plan the resolved course does not offer,
+ * `resolveCourseFromParams` returns `null` and the page
+ * redirects — the default is never substituted for an invalid
+ * plan.
+ */
 export const DEFAULT_PLAN: PlanType = "year";
 
 /** Applied when no channel has been chosen yet. */

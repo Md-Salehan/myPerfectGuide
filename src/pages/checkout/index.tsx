@@ -3,14 +3,22 @@
 // Checkout page orchestrator.
 //
 // Responsibilities:
-//   - Read + validate URL params (redirect to "/" if invalid)
-//   - Fetch product via RTK Query, reconcile with URL data
+//   - Read courseId + plan from the URL, resolve them against
+//     the central catalogue (src/data/courses.ts) and redirect
+//     to "/" if invalid
 //   - Own all page state (plan, phone, email, coupon, gst, modals)
 //   - Run all API flows (verify, coupon, gst, order)
 //   - Dispatch checkout:submit / checkout:redirect events
 //   - Render the two-column layout with the mobile reflow
 //
-// OTP architecture (post-refactor):
+// Data-flow (post-refactor):
+//   URL: ?courseId=<id>&plan=<id>
+//     -> resolveCourseFromParams(searchParams)
+//     -> courses[courseId] + course.plans[plan]
+//     -> every section reads from this resolved pair
+//     -> buildOrderPayload({ courseId, ... })
+//
+// OTP architecture (unchanged):
 //   - One <OtpModal />, one OtpInput, one cooldown ticker.
 //   - The modal is channel-agnostic: it receives `sendOtp`
 //     and `verifyOtp` adapters built here, which translate
@@ -37,11 +45,12 @@ import { OtpModal } from "./modals/OtpModal";
 import { PayErrorModal } from "./modals/PayErrorModal";
 
 import {
+    // CHECKOUT_COURSE_PARAM,
     CHECKOUT_ERROR_EVENT,
+    CHECKOUT_PLAN_PARAM,
     CHECKOUT_REDIRECT_EVENT,
     CHECKOUT_SUBMIT_EVENT,
     DEFAULT_OTP_CHANNEL,
-    DEFAULT_PLAN,
     EMAIL_REGEX,
     GSTIN_REGEX,
     PHONE_REGEX,
@@ -50,12 +59,11 @@ import {
     buildOrderPayload,
     computeTotals,
     isGstFilled,
-    parseProductFromParams,
+    resolveCourseFromParams,
 } from "./utils";
 
 import {
     useCreateOrderMutation,
-    useGetProductQuery,
     useSendEmailOtpMutation,
     useSendPhoneOtpMutation,
     useValidateCouponMutation,
@@ -69,7 +77,6 @@ import type {
     CheckoutModal,
     GstDetails,
     PlanType,
-    Product,
     VerifiedBy,
     OTPChannel,
 } from "./types";
@@ -97,28 +104,28 @@ const EMPTY_ERRORS: CheckoutErrors = {
    ------------------------------------------------------------ */
 
 export function CheckoutPage() {
-    /* ---------- URL + product ---------- */
+    /* ---------- URL + resolved course + plan ---------- */
 
-    const [searchParams] = useSearchParams();
+    const [searchParams, setSearchParams] = useSearchParams();
 
-    const urlProduct = useMemo(
-        () => parseProductFromParams(searchParams),
+    const resolved = useMemo(
+        () => resolveCourseFromParams(searchParams),
         [searchParams],
     );
 
-    const productId = urlProduct?.id ?? "";
-
-    const productQuery = useGetProductQuery(productId, {
-        skip: !productId,
-    });
+    // A stable courseId for the payload below, even when `resolved`
+    // is null (the redirect branch runs first in that case). Reading
+    // it defensively keeps the hook order identical on every render.
+    const courseId = resolved?.course.courseId ?? "";
 
     /* ---------- State ---------- */
 
-    const [plan, setPlan] = useState<PlanType>(() =>
-        urlProduct?.plans.year
-            ? (searchParams.get("plan") as PlanType) ?? DEFAULT_PLAN
-            : DEFAULT_PLAN,
-    );
+    // The URL plan is authoritative on first render. `resolved`
+    // guarantees the plan exists on the course, so no fallback is
+    // needed here — the only reason to reach `DEFAULT_PLAN` would
+    // be a missing `plan` param, which `resolveCourseFromParams`
+    // already normalises.
+    const [plan, setPlan] = useState<PlanType>(() => resolved?.plan ?? "year");
     const [channel, setChannel] = useState<OTPChannel>(DEFAULT_OTP_CHANNEL);
     const [phone, setPhone] = useState("");
     const [email, setEmail] = useState("");
@@ -145,22 +152,16 @@ export function CheckoutPage() {
     const [validateGst] = useValidateGstMutation();
     const [createOrder] = useCreateOrderMutation();
 
-    /* ---------- Effective product (server wins over URL) ---------- */
+    /* ---------- Effective product (from central data) ---------- */
 
-    const product: Product | null = useMemo(() => {
-        if (!urlProduct) return null;
-        const server = productQuery.data;
-        if (!server) return urlProduct;
-        return {
-            ...urlProduct,
-            ...server,
-            plans: { ...urlProduct.plans, ...server.plans },
-        };
-    }, [urlProduct, productQuery.data]);
+    // `resolved.course` is the full Course object from
+    // src/data/courses.ts. Sections consume it via the existing
+    // `Product` type alias, so no shape change reaches them.
+    const product = resolved?.course ?? null;
 
     /* ---------- Derived: plan, totals ---------- */
 
-    const planData = product?.plans[plan];
+    const planData = resolved?.planData;
     const subtotal = planData?.price ?? 0;
     const totals = useMemo(
         () => computeTotals(subtotal, discount),
@@ -191,12 +192,24 @@ export function CheckoutPage() {
 
     /* ---------- Plan change (also resets coupon discount) ---------- */
 
-    const handleSelectPlan = useCallback((next: PlanType) => {
-        setPlan(next);
-        // Plan change invalidates any coupon discount tied to the old subtotal.
-        setDiscount(0);
-        setDiscountLabel(null);
-    }, []);
+    const handleSelectPlan = useCallback(
+        (next: PlanType) => {
+            setPlan(next);
+            // Keep the URL in sync so a reload lands on the same plan.
+            setSearchParams(
+                (prev) => {
+                    const params = new URLSearchParams(prev);
+                    params.set(CHECKOUT_PLAN_PARAM, next);
+                    return params;
+                },
+                { replace: true },
+            );
+            // Plan change invalidates any coupon discount tied to the old subtotal.
+            setDiscount(0);
+            setDiscountLabel(null);
+        },
+        [setSearchParams],
+    );
 
     /* ------------------------------------------------------------
        Channel-bound adapters handed to <OtpModal />
@@ -401,7 +414,14 @@ export function CheckoutPage() {
        ------------------------------------------------------------ */
 
     const handlePay = useCallback(async () => {
-        if (submitting || verifiedBy === null || !product || !planData) return;
+        if (
+            submitting ||
+            verifiedBy === null ||
+            !product ||
+            !planData
+        ) {
+            return;
+        }
 
         // GST validation (client fast path + server)
         if (isGstFilled(gst)) {
@@ -437,6 +457,7 @@ export function CheckoutPage() {
         // Order creation
         setSubmitting(true);
         const payload = buildOrderPayload({
+            courseId,
             plan,
             planLabel: planData.label,
             totals,
@@ -485,6 +506,7 @@ export function CheckoutPage() {
         verifiedBy,
         product,
         planData,
+        courseId,
         gst,
         plan,
         totals,
@@ -498,7 +520,7 @@ export function CheckoutPage() {
 
     /* ---------- Redirect if URL is invalid ---------- */
 
-    if (!urlProduct || !product) {
+    if (!resolved || !product) {
         return <Navigate to="/" replace />;
     }
 

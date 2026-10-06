@@ -7,7 +7,7 @@ export const ROUTES = {
   /** About Us page — migrated from about_us.html. */
   ABOUT: "/about",
   CONTACT: "/contact",
-  CHECKOUT: "/checkout",
+  CHECKOUT: "/order",
   COURSE_1: "/courses/complete-taxation-compliance",
   COURSE_2: "/courses/digital-marketing",
   COURSE_3: "/courses/itr-filing",

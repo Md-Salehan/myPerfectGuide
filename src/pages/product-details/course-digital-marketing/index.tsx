@@ -11,6 +11,14 @@
 // freelance program, placement program and the full pricing
 // comparison are promoted to full-width sections because they
 // carry the Premium value proposition and need the room.
+//
+// Enroll flow (post-refactor):
+//   The <SidebarEnrollCard /> receives this page's `courseId`
+//   and, on Enroll, navigates to
+//     /order?courseId=digital-marketing-2026&plan=<year|life>
+//   The checkout page re-resolves both from src/data/courses.ts.
+//   NOTE: for this course, the "year" slot is Standard and the
+//   "life" slot is Premium — the mapping the existing mock used.
 // ============================================================
 
 
@@ -49,13 +57,13 @@ export function CourseDigitalMarketingPage() {
             LEFT COLUMN — top-of-page sections
             ============================================================ */}
                 <div className="min-w-0">
-                    <DigitalMarketingHero /> //Dynamic Reused
-                    <CourseHighlights /> // Dynamic Reused
-                    <CourseIncludes /> // Reused
-                    <WhatYouLearn /> // Reused
+                    <DigitalMarketingHero /> {/* Dynamic Reused */}
+                    <CourseHighlights /> {/* Dynamic Reused */}
+                    <CourseIncludes /> {/* Reused */}
+                    <WhatYouLearn /> {/* Reused */}
                     <ToolsYouMaster />
-                    <WhoThisIsFor /> // Reused
-                    <HowItWorks /> // Reused
+                    <WhoThisIsFor /> {/* Reused */}
+                    <HowItWorks /> {/* Reused */}
                 </div>
 
                 {/* ============================================================
@@ -65,10 +73,12 @@ export function CourseDigitalMarketingPage() {
                     <div className="sticky-sidebar">
                         <div className="sidebar-card">
                             <SidebarEnrollCard
+                                courseId="digital-marketing-2026"
                                 promoThumbnail={{ type: "video", src: "/video/ads-promo.mp4", poster: "/img/ads-promo.jpg" }}
                                 footNote="Premium seats are limited per batch."
                                 plans={[
                                     {
+                                        key: "year",
                                         label: "Standard — ₹4,999",
                                         price: 4999,
                                         original: 10000,
@@ -83,12 +93,13 @@ export function CourseDigitalMarketingPage() {
                                         ],
                                     },
                                     {
+                                        key: "life",
                                         label: "Premium — ₹14,999",
                                         price: 14999,
                                         original: 60000,
                                         off: 75,
                                         ctaLabel: "Enroll in Premium — ₹14,999",
-                                        
+
                                         note:
                                             "Your ₹10,000 Placement & Internship fee is 100% refundable if we don't deliver your internships and placement.",
                                         features: [

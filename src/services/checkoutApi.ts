@@ -10,9 +10,13 @@
 // (services/mocks/checkoutMocks.ts). When a real backend
 // arrives, each queryFn swaps to the url/method/body form:
 //
-//   query: (args) => ({ url: "/products/" + args, method: "GET" })
+//   query: (args) => ({ url: "/coupons/validate", method: "POST", body: args })
 //
 // and nothing else in the app changes.
+//
+// NOTE: the product catalogue is NOT an API endpoint. It lives
+// in src/data/courses.ts and is read synchronously by the
+// checkout page. There is no `getProduct` endpoint.
 // ============================================================
 
 import { baseApi } from "./baseApi";
@@ -23,15 +27,15 @@ import {
   maybeFail,
   MOCK_OTP_CODE,
   MOCK_OTP_FAIL_CODE,
-  MOCK_PRODUCTS,
   simulateLatency,
 } from "./mocks/checkoutMocks";
+
+import { getCourse } from "../data/courses";
 
 import { EMAIL_REGEX, GSTIN_REGEX, PHONE_REGEX } from "../pages/checkout/constants";
 
 import type {
   CreateOrderResponse,
-  GetProductResponse,
   OrderPayload,
   SendEmailOtpArgs,
   SendOtpResponse,
@@ -53,7 +57,6 @@ import type {
    ------------------------------------------------------------ */
 
 const LATENCY = {
-  getProduct: 180,
   sendOtp: 250,
   verifyOtp: 350,
   validateCoupon: 300,
@@ -67,29 +70,7 @@ const LATENCY = {
 
 export const checkoutApi = baseApi.injectEndpoints({
   endpoints: (build) => ({
-    /* ---------- 1. Get product ---------------------------------- */
-    getProduct: build.query<GetProductResponse, string>({
-      async queryFn(id) {
-        await simulateLatency(LATENCY.getProduct);
-        try {
-          maybeFail();
-        } catch (error) {
-          return {
-            error: { status: 503, data: "Could not load product" },
-          };
-        }
-        const product = MOCK_PRODUCTS[id];
-        if (!product) {
-          return {
-            error: { status: 404, data: `Product "${id}" not found` },
-          };
-        }
-        return { data: product };
-      },
-      providesTags: (_res, _err, id) => [{ type: "Product", id }],
-    }),
-
-    /* ---------- 2a. Send phone OTP ------------------------------ */
+    /* ---------- 1a. Send phone OTP ------------------------------ */
     sendPhoneOtp: build.mutation<SendOtpResponse, SendPhoneOtpArgs>({
       async queryFn({ phone }) {
         await simulateLatency(LATENCY.sendOtp);
@@ -112,7 +93,7 @@ export const checkoutApi = baseApi.injectEndpoints({
       },
     }),
 
-    /* ---------- 2b. Verify phone OTP ---------------------------- */
+    /* ---------- 1b. Verify phone OTP ---------------------------- */
     verifyPhoneOtp: build.mutation<VerifyOtpResponse, VerifyPhoneOtpArgs>({
       async queryFn({ phone, otp }) {
         await simulateLatency(LATENCY.verifyOtp);
@@ -134,7 +115,7 @@ export const checkoutApi = baseApi.injectEndpoints({
       },
     }),
 
-    /* ---------- 3a. Send email OTP ------------------------------ */
+    /* ---------- 2a. Send email OTP ------------------------------ */
     sendEmailOtp: build.mutation<SendOtpResponse, SendEmailOtpArgs>({
       async queryFn({ email }) {
         await simulateLatency(LATENCY.sendOtp);
@@ -155,7 +136,7 @@ export const checkoutApi = baseApi.injectEndpoints({
       },
     }),
 
-    /* ---------- 3b. Verify email OTP ---------------------------- */
+    /* ---------- 2b. Verify email OTP ---------------------------- */
     verifyEmailOtp: build.mutation<VerifyOtpResponse, VerifyEmailOtpArgs>({
       async queryFn({ email, otp }) {
         await simulateLatency(LATENCY.verifyOtp);
@@ -174,7 +155,7 @@ export const checkoutApi = baseApi.injectEndpoints({
       },
     }),
 
-    /* ---------- 4. Validate coupon ------------------------------ */
+    /* ---------- 3. Validate coupon ------------------------------ */
     validateCoupon: build.mutation<ValidateCouponResponse, ValidateCouponArgs>({
       async queryFn({ code, subtotal }) {
         await simulateLatency(LATENCY.validateCoupon);
@@ -202,7 +183,7 @@ export const checkoutApi = baseApi.injectEndpoints({
       },
     }),
 
-    /* ---------- 5. Validate GST --------------------------------- */
+    /* ---------- 4. Validate GST --------------------------------- */
     validateGst: build.mutation<ValidateGstResponse, ValidateGstArgs>({
       async queryFn(gst) {
         await simulateLatency(LATENCY.validateGst);
@@ -229,7 +210,7 @@ export const checkoutApi = baseApi.injectEndpoints({
       },
     }),
 
-    /* ---------- 6. Create order --------------------------------- */
+    /* ---------- 5. Create order --------------------------------- */
     createOrder: build.mutation<CreateOrderResponse, OrderPayload>({
       async queryFn(payload) {
         await simulateLatency(LATENCY.createOrder);
@@ -238,7 +219,19 @@ export const checkoutApi = baseApi.injectEndpoints({
         } catch {
           return { error: { status: 503, data: "Order creation failed" } };
         }
-        // Sanity check: subtotal must match a plan price.
+        // Sanity check: the payload must identify a real course.
+        // Parity with a real backend that would reject an unknown
+        // courseId before touching a payment gateway.
+        const course = getCourse(payload.courseId);
+        if (!course) {
+          return {
+            error: {
+              status: 400,
+              data: `Unknown courseId "${payload.courseId}"`,
+            },
+          };
+        }
+        // Sanity check: subtotal must match the resolved plan price.
         if (payload.amount.subtotal <= 0) {
           return { error: { status: 400, data: "Invalid order amount" } };
         }
@@ -268,7 +261,6 @@ export const checkoutApi = baseApi.injectEndpoints({
    ------------------------------------------------------------ */
 
 export const {
-  useGetProductQuery,
   useSendPhoneOtpMutation,
   useVerifyPhoneOtpMutation,
   useSendEmailOtpMutation,

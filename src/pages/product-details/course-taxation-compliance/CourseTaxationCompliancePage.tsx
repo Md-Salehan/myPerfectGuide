@@ -13,6 +13,12 @@
 // inline JS; we approximate it with a CSS height that matches
 // the desktop hero (~600px). The `hero-bleed` class hides it
 // below lg, so it has no effect on mobile.
+//
+// Enroll flow (post-refactor):
+//   The <SidebarEnrollCard /> receives this page's `courseId`
+//   and, on Enroll, navigates to
+//     /order?courseId=taxation-compliance-2026&plan=<selected>
+//   The checkout page re-resolves both from src/data/courses.ts.
 // ============================================================
 
 import { Clock4 } from "lucide-react";
@@ -68,9 +74,11 @@ export function CourseTaxationCompliancePage() {
           <div className="sticky-sidebar">
             <div className="sidebar-card">
               <SidebarEnrollCard
+                courseId="taxation-compliance-2026"
                 promoThumbnail={{ type: "image", src: "/img/taxation-promo.jpg", alt: "Taxation & Compliance Course" }}
                 plans={[
                   {
+                    key: "year",
                     label: "1 Year — ₹1,599",
                     price: 1599,
                     original: 15990,
@@ -86,6 +94,7 @@ export function CourseTaxationCompliancePage() {
                     ],
                   },
                   {
+                    key: "life",
                     label: "Lifetime — ₹2,999",
                     price: 2999,
                     original: 19990,

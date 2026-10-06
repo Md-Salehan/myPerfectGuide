@@ -6,6 +6,13 @@
 // function so it can be reasoned about (and tested) in
 // isolation from the components that consume it.
 //
+// Post-refactor the checkout no longer reconstructs a product
+// from URL params. It reads only `courseId` + `plan`, looks the
+// course up in `src/data/courses.ts`, and resolves the plan
+// from that course's `plans` map. Everything below is the pure
+// logic for that lookup, plus the totals and payload builders
+// the page still needs.
+//
 // Consumed by:
 //   - pages/checkout/CheckoutPage.tsx
 //   - pages/checkout/sections/*.tsx
@@ -13,13 +20,17 @@
 // ============================================================
 
 import type {
+    Course,
+    CoursePlan,
+    PlanType,
+} from "../../data/courses";
+import { getCourse } from "../../data/courses";
+
+import type {
     GstDetails,
     OrderPayload,
     OrderTotals,
     OTPChannel,
-    PlanType,
-    Product,
-    ProductPlan,
     VerifiedBy,
 } from "./types";
 import { DEFAULT_PLAN } from "./constants";
@@ -29,154 +40,63 @@ import { DEFAULT_PLAN } from "./constants";
 export { formatPrice } from "../../utils/formatPrice";
 
 /* ------------------------------------------------------------
-   URL parsing
+   URL parsing — courseId + plan only
    ------------------------------------------------------------ */
 
 /**
- * Splits a pipe-separated string into a trimmed array.
- * Empty segments and empty strings are dropped.
- *
- *   "A | B | C"   -> ["A", "B", "C"]
- *   "A||C"        -> ["A", "C"]
- *   ""            -> []
- *   undefined     -> []
- */
-export function parsePipeList(value: string | null): string[] {
-    if (!value) return [];
-    return value
-        .split("|")
-        .map((s) => s.trim())
-        .filter(Boolean);
-}
-
-/**
- * Parses a URL string into a finite integer.
- * Returns `undefined` when the input is missing, empty,
- * non-numeric, or not finite.
- */
-function parseInteger(value: string | null): number | undefined {
-    if (value === null || value.trim() === "") return undefined;
-    const n = Number(value);
-    if (!Number.isFinite(n) || !Number.isInteger(n)) return undefined;
-    return n;
-}
-
-/**
- * Parses a URL string into a finite float.
- * Returns `undefined` when the input is missing or non-numeric.
- */
-function parseFloatSafe(value: string | null): number | undefined {
-    if (value === null || value.trim() === "") return undefined;
-    const n = Number(value);
-    if (!Number.isFinite(n)) return undefined;
-    return n;
-}
-
-/**
  * Normalises the plan param. Anything other than "year" or
- * "life" falls back to DEFAULT_PLAN.
+ * "life" falls back to DEFAULT_PLAN — the caller is responsible
+ * for rejecting the request if the course doesn't actually
+ * offer the fallback.
  */
 function parsePlan(value: string | null): PlanType {
     return value === "year" || value === "life" ? value : DEFAULT_PLAN;
 }
 
 /**
- * Reads the required `price` and optional `original` and builds
- * a `ProductPlan` for the requested plan.
+ * Result of resolving the checkout URL to a course + plan.
  *
- * The `off` label and `label` are expected from the URL; when
- * absent they're omitted from the plan object (the UI hides
- * those pieces when the field is missing).
+ * `course` is the full central-data object; `plan` is the plan
+ * id the URL asked for (post-normalisation); `planData` is the
+ * matching `CoursePlan` — guaranteed to exist when this object
+ * is returned.
  */
-function buildPlanFromParams(
-    params: URLSearchParams,
-    plan: PlanType,
-): ProductPlan | null {
-    const price = parseInteger(params.get("price"));
-    if (price === undefined) return null;
-
-    const original = parseInteger(params.get("original")) ?? price;
-    const off = params.get("off") ?? "";
-    const title = params.get("title") ?? "";
-
-    // The label shown inside the toggle button. Falls back to a
-    // canonical "{Title} — ₹{price}" if the URL doesn't carry an
-    // explicit label. The plan id itself is not rendered.
-    const label =
-        params.get("planLabel") ??
-        `${plan === "year" ? "1 Year" : "Lifetime"} — ₹${price.toLocaleString("en-IN")}`;
-
-    // Unused `title` for now — kept here in case a future plan
-    // label wants to include the product title.
-    void title;
-
-    return { label, price, original, off };
+export interface ResolvedCourse {
+    course: Course;
+    plan: PlanType;
+    planData: CoursePlan;
 }
 
 /**
- * Reads the checkout product from the URL's search params.
+ * Reads `courseId` + `plan` from the checkout URL, looks the
+ * course up in the central data file, and resolves the plan.
  *
- * Required params (missing → returns null → caller redirects):
- *   - id
- *   - title
- *   - image
- *   - price
+ * Returns `null` — never throws, never substitutes a different
+ * course or plan — when any of the following hold:
+ *   - `courseId` is missing
+ *   - `courseId` does not exist in the catalogue
+ *   - `plan` is missing *and* the course has no `year` fallback
+ *   - the requested plan does not exist on the resolved course
  *
- * Optional params:
- *   - plan        (default: "year")
- *   - original
- *   - off
- *   - rating
- *   - ratingCount
- *   - short       (pipe-separated)
- *   - more        (pipe-separated)
- *   - type
- *   - planLabel
+ * The caller (CheckoutPage) redirects to "/" on `null`, matching
+ * the source's behaviour for an invalid URL.
  */
-export function parseProductFromParams(
+export function resolveCourseFromParams(
     params: URLSearchParams,
-): Product | null {
-    const id = params.get("id");
-    const title = params.get("title");
-    const image = params.get("image");
+): ResolvedCourse | null {
+    const courseId = params.get("courseId");
+    const course = getCourse(courseId);
+    if (!course) return null;
+
+    // Only fall back to DEFAULT_PLAN when the URL omits `plan`.
+    // A `plan` that is present but unrecognised is still treated
+    // as DEFAULT_PLAN by `parsePlan`; the `planData` check below
+    // then rejects it if the course doesn't offer that plan.
     const plan = parsePlan(params.get("plan"));
-
-    if (!id || !title || !image) return null;
-
-    const planData = buildPlanFromParams(params, plan);
+    const planData = course.plans[plan];
     if (!planData) return null;
 
-    // The other plan slot is populated only when the URL supplies
-    // a `priceLife` param. This lets a two-tier product still be
-    // described through the URL without inventing a second query
-    // string shape.
-    const priceLife = parseInteger(params.get("priceLife"));
-    const planLife: ProductPlan | undefined =
-        priceLife !== undefined
-            ? {
-                label: `Lifetime — ₹${priceLife.toLocaleString("en-IN")}`,
-                price: priceLife,
-                original: parseInteger(params.get("originalLife")) ?? priceLife,
-                off: params.get("offLife") ?? "",
-            }
-            : undefined;
-
-    const plans: Product["plans"] = {
-        [plan]: planData,
-        ...(planLife ? { life: planLife } : {}),
-    };
-
-    return {
-        id,
-        title,
-        image,
-        plans,
-        rating: parseFloatSafe(params.get("rating")),
-        ratingCount: params.get("ratingCount") ?? undefined,
-        shortFeatures: parsePipeList(params.get("short")),
-        moreFeatures: parsePipeList(params.get("more")),
-        type: params.get("type") ?? undefined,
-    };
+    return { course, plan, planData };
 }
 
 /* ------------------------------------------------------------
@@ -222,7 +142,11 @@ export function isGstFilled(gst: GstDetails): boolean {
    ------------------------------------------------------------ */
 
 interface BuildOrderPayloadArgs {
+    /** Identifier of the course being purchased. */
+    courseId: string;
+    /** The selected plan id. */
     plan: PlanType;
+    /** The selected plan's display label, e.g. "1 Year — ₹1,599". */
     planLabel: string;
     totals: OrderTotals;
     coupon: string | null;
@@ -234,11 +158,20 @@ interface BuildOrderPayloadArgs {
 }
 
 /**
- * Assembles the payload sent to `createOrder`. Mirrors the
- * source's `buildPayload()` key-for-key, so any downstream
- * listener of the `checkout:submit` event keeps working.
+ * Assembles the payload sent to `createOrder`.
+ *
+ * Mirrors the source's `buildPayload()` key-for-key, plus the
+ * new `courseId` field that identifies which course is being
+ * purchased. `courseId` comes from the resolved checkout state
+ * (ultimately the URL), never hardcoded, and is never derived
+ * from the plan alone — the same plan id `"year"` exists on
+ * multiple courses.
+ *
+ * Downstream listeners of `checkout:submit` see the same shape
+ * as before, with one additive field.
  */
 export function buildOrderPayload({
+    courseId,
     plan,
     planLabel,
     totals,
@@ -250,6 +183,7 @@ export function buildOrderPayload({
     gst,
 }: BuildOrderPayloadArgs): OrderPayload {
     return {
+        courseId,
         plan: { id: plan, label: planLabel },
         amount: {
             subtotal: totals.subtotal,
