@@ -89,7 +89,7 @@ export const OTP_LENGTH = 6;
  * Seconds the "Resend code" link stays disabled after a send.
  * Matches the pattern real OTP flows use.
  */
-export const RESEND_COOLDOWN_SECONDS = 60;
+export const RESEND_COOLDOWN_SECONDS = 6;
 
 /* ------------------------------------------------------------
    Coupon input
