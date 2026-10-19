@@ -74,7 +74,7 @@ export function Certifications() {
             ============================================================ */}
         <div className="relative">
           <img
-            src={API_BASE_URL + "/course-detail-asset/certificate-tax-course.png"}
+            src={import.meta.env.BASE_URL + "images/course-detail-asset/certificate-tax-course.png"}
             alt="Certificate Mockup"
             className="rounded-2xl w-full max-w-lg mx-auto"
           />
@@ -92,7 +92,6 @@ export function Certifications() {
    ------------------------------------------------------------ */
 
 import type { ReactNode } from "react";
-import { API_BASE_URL } from "../../../../constants/api";
 
 function CertTrustItem({ children }: { children: ReactNode }) {
   return (

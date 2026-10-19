@@ -31,7 +31,7 @@ export function WhatYouLearn() {
         <div className="card p-5 sm:p-6 course-card">
           <div className="flex flex-col sm:flex-row gap-5">
             {/* Cover image */}
-            <div className="w-full sm:w-44 rounded-xl overflow-hidden shrink-0 aspect-video bg-gradient-to-br from-sky-400 to-cyan-600">
+            <div className="w-full sm:w-64 lg:w-44 rounded-xl overflow-hidden shrink-0 aspect-video bg-gradient-to-br from-sky-400 to-cyan-600 max-h-[270px]">
               <picture>
                 <source media="(max-width: 1023px)" srcSet={`${import.meta.env.BASE_URL}images/course-detail-asset/taxation/1_desk.png`} />
                 <source media="(min-width: 1024px)" srcSet={`${import.meta.env.BASE_URL}images/course-detail-asset/taxation/1_mob.png`} />
@@ -78,14 +78,14 @@ export function WhatYouLearn() {
         <div className="card p-5 sm:p-6 course-card">
           <div className="flex flex-col sm:flex-row gap-5">
             {/* Cover image */}
-            <div className="w-full sm:w-44 rounded-xl overflow-hidden shrink-0 aspect-video bg-gradient-to-br from-emerald-400 to-green-700">
-              <picture>
-                <source media="(max-width: 1023px)" srcSet="/asset/itr-course-mobile.jpg" />
-                <source media="(min-width: 1024px)" srcSet="/asset/itr-course-desktop.jpg" />
+            <div className="w-full sm:w-64 lg:w-44 rounded-xl overflow-hidden shrink-0 aspect-video bg-gradient-to-br from-emerald-400 to-green-700 max-h-[270px]">
+              <picture >
+                <source media="(max-width: 1023px)" srcSet={`${import.meta.env.BASE_URL}images/course-detail-asset/taxation/2_desk.png`} />
+                <source media="(min-width: 1024px)" srcSet={`${import.meta.env.BASE_URL}images/course-detail-asset/taxation/2_mob.png`} />
                 <img
-                  src="/asset/itr-course-desktop.jpg"
+                  src={`${import.meta.env.BASE_URL}images/course-detail-asset/taxation/2_desk.png`}
                   alt="ITR Filing, Accounting & Tax Planning Mastery course cover"
-                  className="w-full h-full object-cover"
+                  className="w-full h-full object-fit"
                   loading="lazy"
                 />
               </picture>
@@ -123,16 +123,16 @@ export function WhatYouLearn() {
             Card 3 — Digital Marketing & Client Acquisition System 2026
             ============================================================ */}
         <div className="card p-5 sm:p-6 course-card">
-          <div className="flex flex-col sm:flex-row gap-5">
+          <div className="flex flex-col sm:flex-row gap-5 ">
             {/* Cover image */}
-            <div className="w-full sm:w-44 rounded-xl overflow-hidden shrink-0 aspect-video bg-gradient-to-br from-fuchsia-500 to-purple-700">
+            <div className="w-full sm:w-64 lg:w-44 rounded-xl overflow-hidden shrink-0 aspect-video bg-gradient-to-br from-fuchsia-500 to-purple-700 max-h-[270px]">
               <picture>
-                <source media="(max-width: 1023px)" srcSet="/asset/marketing-course-mobile.jpg" />
-                <source media="(min-width: 1024px)" srcSet="/asset/marketing-course-desktop.jpg" />
+                <source media="(max-width: 1023px)" srcSet={`${import.meta.env.BASE_URL}images/course-detail-asset/taxation/3_desk.png`} />
+                <source media="(min-width: 1024px)" srcSet={`${import.meta.env.BASE_URL}images/course-detail-asset/taxation/3_mob.png`} />
                 <img
-                  src="/asset/marketing-course-desktop.jpg"
+                  src={`${import.meta.env.BASE_URL}images/course-detail-asset/taxation/3_desk.png`}
                   alt="Digital Marketing & Client Acquisition System course cover"
-                  className="w-full h-full object-cover"
+                  className="w-full h-full object-fit"
                   loading="lazy"
                 />
               </picture>

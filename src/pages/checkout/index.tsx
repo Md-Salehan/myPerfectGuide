@@ -11,20 +11,29 @@
 //   - Dispatch checkout:submit / checkout:redirect events
 //   - Render the two-column layout with the mobile reflow
 //
-// Data-flow (post-refactor):
+// Data-flow:
 //   URL: ?courseId=<id>&plan=<id>
 //     -> resolveCourseFromParams(searchParams)
 //     -> courses[courseId] + course.plans[plan]
 //     -> every section reads from this resolved pair
 //     -> buildOrderPayload({ courseId, ... })
 //
-// OTP architecture (unchanged):
+// OTP architecture:
 //   - One <OtpModal />, one OtpInput, one cooldown ticker.
 //   - The modal is channel-agnostic: it receives `sendOtp`
 //     and `verifyOtp` adapters built here, which translate
-//     { channel, identity, otp } into the correct mutation.
-//   - VerifySection calls onSendOtp(channel); this page runs
-//     the matching mutation and opens the modal on success.
+//     { channel, identity, otp } into the correct mutation
+//     trigger.
+//   - The adapters RETURN the RTK Query request handle
+//     unchanged. They do NOT await it. The modal retains the
+//     handle and calls `.abort()` on close; RTK Query's
+//     internal AbortController reaches fetchBaseQuery → fetch.
+//
+// Cancellation model:
+//   - Only the OTP send + verify requests are abortable. The
+//     modal is the only place that retains a handle for them.
+//   - createOrder is NOT aborted on unmount — it is a
+//     consequential mutation (see checkoutApi.ts).
 // ============================================================
 
 import { useCallback, useMemo, useState } from "react";
@@ -45,9 +54,8 @@ import { OtpModal } from "./modals/OtpModal";
 import { PayErrorModal } from "./modals/PayErrorModal";
 
 import {
-    // CHECKOUT_COURSE_PARAM,
-    CHECKOUT_ERROR_EVENT,
     CHECKOUT_PLAN_PARAM,
+    CHECKOUT_ERROR_EVENT,
     CHECKOUT_REDIRECT_EVENT,
     CHECKOUT_SUBMIT_EVENT,
     DEFAULT_OTP_CHANNEL,
@@ -66,7 +74,6 @@ import {
     useCreateOrderMutation,
     useSendEmailOtpMutation,
     useSendPhoneOtpMutation,
-    useValidateCouponMutation,
     useValidateGstMutation,
     useVerifyEmailOtpMutation,
     useVerifyPhoneOtpMutation,
@@ -94,7 +101,6 @@ const EMPTY_GST: GstDetails = {
 
 const EMPTY_ERRORS: CheckoutErrors = {
     phone: "",
-    coupon: "",
     gst: "",
     email: "",
 };
@@ -132,11 +138,8 @@ export function CheckoutPage() {
     const [verifiedBy, setVerifiedBy] = useState<VerifiedBy>(null);
     const [gstOpen, setGstOpen] = useState(false);
     const [gst, setGst] = useState<GstDetails>(EMPTY_GST);
-    const [couponOpen, setCouponOpen] = useState(false);
-    const [couponInput, setCouponInput] = useState("");
     const [coupon, setCoupon] = useState<string | null>(null);
     const [discount, setDiscount] = useState(0);
-    const [discountLabel, setDiscountLabel] = useState<string | null>(null);
     const [submitting, setSubmitting] = useState(false);
     const [errors, setErrors] = useState<CheckoutErrors>(EMPTY_ERRORS);
     const [modal, setModal] = useState<CheckoutModal>(null);
@@ -144,19 +147,20 @@ export function CheckoutPage() {
 
     /* ---------- Mutations ---------- */
 
+    // OTP — used via adapters below; each trigger returns a request
+    // handle the modal retains and can `.abort()`.
     const [sendPhoneOtp] = useSendPhoneOtpMutation();
     const [verifyPhoneOtp] = useVerifyPhoneOtpMutation();
     const [sendEmailOtp] = useSendEmailOtpMutation();
     const [verifyEmailOtp] = useVerifyEmailOtpMutation();
-    const [validateCoupon] = useValidateCouponMutation();
+
+    // Coupon / GST / order — no cancellation affordance; used
+    // directly with `.unwrap()` at the call sites.
     const [validateGst] = useValidateGstMutation();
     const [createOrder] = useCreateOrderMutation();
 
     /* ---------- Effective product (from central data) ---------- */
 
-    // `resolved.course` is the full Course object from
-    // src/data/courses.ts. Sections consume it via the existing
-    // `Product` type alias, so no shape change reaches them.
     const product = resolved?.course ?? null;
 
     /* ---------- Derived: plan, totals ---------- */
@@ -204,9 +208,7 @@ export function CheckoutPage() {
                 },
                 { replace: true },
             );
-            // Plan change invalidates any coupon discount tied to the old subtotal.
-            setDiscount(0);
-            setDiscountLabel(null);
+
         },
         [setSearchParams],
     );
@@ -216,11 +218,20 @@ export function CheckoutPage() {
        ------------------------------------------------------------
        These translate the modal's channel-agnostic call shape
        ({ channel, identity, otp }) into the correct RTK Query
-       mutation. The modal never imports the mutations itself.
+       mutation trigger.
+
+       IMPORTANT: the adapters RETURN the request handle from the
+       trigger. They do NOT await it. The modal retains the handle
+       so it can call `.abort()` on close; RTK Query's internal
+       AbortController then cancels the in-flight fetch.
+
+       If the adapter awaited `.unwrap()` here, the handle would
+       be gone by the time the modal tried to cancel it — the
+       exact anti-pattern the RTK Query guide §4.3 warns against.
        ------------------------------------------------------------ */
 
     const sendOtpAdapter = useCallback(
-        async ({
+        ({
             channel: c,
             identity,
         }: {
@@ -228,17 +239,15 @@ export function CheckoutPage() {
             identity: string;
         }) => {
             if (c === "phone") {
-                const res = await sendPhoneOtp({ phone: identity }).unwrap();
-                return { devCode: res.devCode };
+                return sendPhoneOtp({ phone: identity });
             }
-            const res = await sendEmailOtp({ email: identity }).unwrap();
-            return { devCode: res.devCode };
+            return sendEmailOtp({ email: identity });
         },
         [sendPhoneOtp, sendEmailOtp],
     );
 
     const verifyOtpAdapter = useCallback(
-        async ({
+        ({
             channel: c,
             identity,
             otp,
@@ -248,15 +257,21 @@ export function CheckoutPage() {
             otp: string;
         }) => {
             if (c === "phone") {
-                return verifyPhoneOtp({ phone: identity, otp }).unwrap();
+                return verifyPhoneOtp({ phone: identity, otp });
             }
-            return verifyEmailOtp({ email: identity, otp }).unwrap();
+            return verifyEmailOtp({ email: identity, otp });
         },
         [verifyPhoneOtp, verifyEmailOtp],
     );
 
     /* ------------------------------------------------------------
        Send OTP (from VerifySection)
+       ------------------------------------------------------------
+       The initial send is not cancellable from the UI — the modal
+       opens only after it resolves — so this call site awaits the
+       handle. If we later add a cancel affordance for the initial
+       send, the change is to retain the handle instead of
+       awaiting it inline.
        ------------------------------------------------------------ */
 
     const handleSendOtp = useCallback(
@@ -276,15 +291,16 @@ export function CheckoutPage() {
 
                 setSending(true);
                 try {
-                    const result = await sendPhoneOtp({ phone }).unwrap();
-                    if (result.sent) {
-                        setModal({
-                            kind: "otp",
-                            channel: "phone",
-                            identity: phone,
-                            devCode: result.devCode,
-                        });
-                    }
+                    const result = await sendOtpAdapter({
+                        channel: "phone",
+                        identity: phone,
+                    }).unwrap();
+                    setModal({
+                        kind: "otp",
+                        channel: "phone",
+                        identity: phone,
+                        devCode: result.devCode,
+                    });
                 } catch {
                     setErrors((e) => ({
                         ...e,
@@ -309,15 +325,16 @@ export function CheckoutPage() {
 
             setSending(true);
             try {
-                const result = await sendEmailOtp({ email: trimmed }).unwrap();
-                if (result.sent) {
-                    setModal({
-                        kind: "otp",
-                        channel: "email",
-                        identity: trimmed,
-                        devCode: result.devCode,
-                    });
-                }
+                const result = await sendOtpAdapter({
+                    channel: "email",
+                    identity: trimmed,
+                }).unwrap();
+                setModal({
+                    kind: "otp",
+                    channel: "email",
+                    identity: trimmed,
+                    devCode: result.devCode,
+                });
             } catch {
                 setErrors((e) => ({
                     ...e,
@@ -332,8 +349,7 @@ export function CheckoutPage() {
             verifiedBy,
             phone,
             email,
-            sendPhoneOtp,
-            sendEmailOtp,
+            sendOtpAdapter,
         ],
     );
 
@@ -357,57 +373,13 @@ export function CheckoutPage() {
        Coupon
        ------------------------------------------------------------ */
 
-    const handleCouponToggle = useCallback(() => {
-        if (verifiedBy === null) {
-            setErrors((e) => ({
-                ...e,
-                coupon: "Please verify your details first",
-            }));
-            return;
-        }
-        setCouponOpen((open) => !open);
-        setErrors((e) => (e.coupon ? { ...e, coupon: "" } : e));
-    }, [verifiedBy]);
-
-    const handleCouponApplyOrRemove = useCallback(async () => {
-        // Remove path
-        if (coupon) {
-            setCoupon(null);
-            setDiscount(0);
-            setDiscountLabel(null);
-            setCouponInput("");
-            setErrors((e) => ({ ...e, coupon: "" }));
-            return;
-        }
-
-        const code = couponInput.trim().toUpperCase();
-        if (!code) {
-            setErrors((e) => ({ ...e, coupon: "Please enter a coupon code" }));
-            return;
-        }
-
-        try {
-            const result = await validateCoupon({ code, subtotal }).unwrap();
-            if (result.valid) {
-                setCoupon(code);
-                setDiscount(result.discount);
-                setDiscountLabel(result.label ?? null);
-                // Keep the panel open so the applied coupon is visible.
-                setCouponOpen(true);
-                setErrors((e) => ({ ...e, coupon: "" }));
-            } else {
-                setErrors((e) => ({
-                    ...e,
-                    coupon: result.reason ?? "Invalid coupon code",
-                }));
-            }
-        } catch {
-            setErrors((e) => ({
-                ...e,
-                coupon: "Could not validate coupon. Please try again.",
-            }));
-        }
-    }, [coupon, couponInput, subtotal, validateCoupon]);
+    const handleCouponApply = useCallback(
+        (result: { code: string | null; discount: number }) => {
+            setCoupon(result.code);
+            setDiscount(result.discount);
+        },
+        [],
+    );
 
     /* ------------------------------------------------------------
        Pay
@@ -568,17 +540,9 @@ export function CheckoutPage() {
                 />
 
                 <CouponSection
-                    open={couponOpen}
-                    value={couponInput}
-                    applied={coupon}
-                    error={errors.coupon}
-                    validating={false}
-                    onToggle={handleCouponToggle}
-                    onValueChange={(v) => {
-                        setCouponInput(v);
-                        setErrors((e) => (e.coupon ? { ...e, coupon: "" } : e));
-                    }}
-                    onApplyOrRemove={handleCouponApplyOrRemove}
+                    subtotal={subtotal}
+                    onApply={handleCouponApply}
+                    locked={verifiedBy === null}
                 />
 
                 <ReceiptSection subtotal={totals.subtotal} total={totals.total} />

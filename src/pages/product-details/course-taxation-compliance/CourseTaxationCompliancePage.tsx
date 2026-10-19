@@ -38,6 +38,8 @@ import { Testimonials } from "./sections/Testimonials";
 import { ToolsYouMaster } from "./sections/ToolsYouMaster";
 import { WhatYouLearn } from "./sections/WhatYouLearn";
 import { WhoThisIsFor } from "./sections/WhoThisIsFor";
+import FooterBanner from "../../../components/common/FooterBanner";
+
 
 export function CourseTaxationCompliancePage() {
   return (
@@ -75,7 +77,7 @@ export function CourseTaxationCompliancePage() {
             <div className="sidebar-card">
               <SidebarEnrollCard
                 courseId="taxation-compliance-2026"
-                promoThumbnail={{ type: "image", src: "/img/taxation-promo.jpg", alt: "Taxation & Compliance Course" }}
+                promoThumbnail={{ type: "image", src: `${import.meta.env.BASE_URL}images/course-detail-asset/taxation/thumbnail.png`, alt: "Taxation & Compliance Course" }}
                 plans={[
                   {
                     key: "year",
@@ -122,6 +124,8 @@ export function CourseTaxationCompliancePage() {
         <OurPromise />
         <Certifications />
         <FaqSection />
+        
+        <FooterBanner />
         <FinalCta />
 
       </div>

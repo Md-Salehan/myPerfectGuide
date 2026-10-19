@@ -83,7 +83,6 @@ export interface GstDetails {
 /** Inline error messages for the three validatable forms. */
 export interface CheckoutErrors {
   phone: string;
-  coupon: string;
   gst: string;
   email: string;
 }

@@ -131,7 +131,7 @@ export function SidebarEnrollCard({
     <div className={`card min-md:mr-8 overflow-hidden shadow-sidebar ${className}`}>
       {/* ---------- Promo banner (thumbnail image or video) ---------- */}
       <div className="p-3 bg-slate-100">
-        <div className="rounded-xl border-[3px] border-amber-400 bg-ink-950 relative overflow-hidden aspect-[16/10]">
+        <div className="rounded-xl border-[3px] border-gray-600 bg-ink-950 relative overflow-hidden aspect-[16/10]">
           {promoThumbnail.type === "video" ? (
             <video
               className="absolute inset-0 w-full h-full object-cover"

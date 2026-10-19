@@ -1,34 +1,7 @@
 // ============================================================
 // src/pages/checkout/modals/OtpModal.tsx
 // Unified, channel-agnostic OTP verification modal.
-//
-// Handles BOTH phone and email verification through a single
-// implementation. The parent (CheckoutPage, via VerifySection)
-// supplies:
-//   - `channel`  : "phone" | "email"  — used only for copy
-//   - `identity` : the phone number or email the code was sent to
-//   - `sendOtp`  : callback to (re)send the code for this channel
-//   - `verifyOtp`: callback to verify the code for this channel
-//
-// This modal deliberately does NOT import any RTK Query hooks.
-// It is purely presentational + flow-driven, so the same
-// component serves both channels without branching on which
-// mutation to call. All channel-specific wiring lives in
-// CheckoutPage / VerifySection.
-//
-// Abort semantics:
-//   - Each in-flight send/verify is owned by an AbortController.
-//   - Closing the modal (X / Escape / backdrop) aborts both.
-//   - Unmounting aborts both.
-//   - The parent's `sendOtp` / `verifyOtp` accept a `signal`
-//     and forward it into the RTK Query mutation, which passes
-//     it to `fetch` via fetchBaseQuery — so the network request
-//     is genuinely cancelled, not just ignored.
-//   - AbortError is swallowed: the modal is already going away.
-//
-// Reuses:
-//   - <Modal />      (src/components/common/Modal.tsx)
-//   - <OtpInput />   (src/components/common/OtpInput.tsx)
+
 // ============================================================
 
 import { useEffect, useRef, useState } from "react";
@@ -46,6 +19,12 @@ import type { VerifyChannel } from "../types";
 /** The verification channel this modal is currently driving. */
 export type OtpChannel = VerifyChannel;
 
+
+export interface RequestHandle<T> {
+  unwrap(): Promise<T>;
+  abort(): void;
+}
+
 interface OtpModalProps {
   /** Whether the modal is visible. */
   open: boolean;
@@ -54,61 +33,38 @@ interface OtpModalProps {
   /** The phone number or email the code was sent to. */
   identity: string;
   /**
-   * Dev hint code returned by the mock send call. When absent,
+   * Dev hint code returned by the send call. When absent,
    * the hint is not rendered. Real backends omit this.
    */
   devCode?: string;
   /**
-   * Send (or resend) the OTP for `channel` + `identity`.
+   * Trigger the send (or resend) mutation for `channel` +
+   * `identity`.
    *
-   * `signal` is optional: when provided, it is forwarded into
-   * the underlying mutation so the request can be cancelled.
-   * Resolves with the fresh devCode (if any) so the modal can
-   * update its hint. Should reject on failure.
+   * MUST return the RTK Query request handle — do NOT await
+   * inside this callback. The modal retains the handle so it
+   * can call `.abort()` later.
    */
   sendOtp: (args: {
     channel: OtpChannel;
     identity: string;
-    signal?: AbortSignal;
-  }) => Promise<{ devCode?: string }>;
+  }) => RequestHandle<{ devCode?: string }>;
   /**
-   * Verify the OTP for `channel` + `identity`.
+   * Trigger the verify mutation for `channel` + `identity`.
    *
-   * `signal` is optional: when provided, it is forwarded into
-   * the underlying mutation so the request can be cancelled.
-   * Resolves with `{ verified: true }` on success, or
-   * `{ verified: false, reason?: string }` on a wrong code.
-   * Should reject on a network-shaped failure.
+   * MUST return the RTK Query request handle — do NOT await
+   * inside this callback. The modal retains the handle so it
+   * can call `.abort()` later.
    */
   verifyOtp: (args: {
     channel: OtpChannel;
     identity: string;
     otp: string;
-    signal?: AbortSignal;
-  }) => Promise<{ verified: boolean; reason?: string }>;
+  }) => RequestHandle<{ verified: boolean; reason?: string }>;
   /** Called when verification succeeds. Parent closes the modal. */
   onSuccess: () => void;
   /** Called when the user requests to close (X / Escape / backdrop). */
   onClose: () => void;
-}
-
-/* ------------------------------------------------------------
-   Helpers
-   ------------------------------------------------------------ */
-
-/**
- * True when `err` came from an AbortSignal-driven cancellation.
- *
- * The DOM spec throws a `DOMException` with `name === "AbortError"`
- * from `fetch`. RTK Query re-throws the same. Some environments
- * (older polyfills, custom baseQueries) may instead throw a plain
- * `Error` with `name === "AbortError"` — both are treated as
- * cancellations.
- */
-function isAbortError(err: unknown): boolean {
-  if (err instanceof DOMException && err.name === "AbortError") return true;
-  if (err instanceof Error && err.name === "AbortError") return true;
-  return false;
 }
 
 /* ------------------------------------------------------------
@@ -118,13 +74,6 @@ function isAbortError(err: unknown): boolean {
 export function OtpModal(props: OtpModalProps) {
   const { open, channel, identity, devCode } = props;
 
-  // A change to any of these begins a *new* verification attempt,
-  // so the body below should start from a clean slate.
-  //   - channel / identity  → user switched target
-  //   - devCode             → a fresh send produced a new code
-  //                           (present in mock mode; "" on real
-  //                           backends, so only channel+identity
-  //                           drive the reset there)
   const resetKey = `${channel}:${identity}:${devCode ?? ""}`;
 
   if (!open) return null;
@@ -157,25 +106,25 @@ function OtpModalBody({
   // Local dev-hint mirror, so a resend can update it.
   const [hintCode, setHintCode] = useState<string | undefined>(devCode);
 
-  /* ---------- Abort controllers ----------
-     One per in-flight request kind. A new attempt replaces the
-     previous controller (the old one is aborted first, so a
-     lingering request can never race a new one to completion).
-     Refs, not state — mutating them must not trigger a render.
-     ------------------------------------------------------------ */
 
-  const verifyAbortRef = useRef<AbortController | null>(null);
-  const resendAbortRef = useRef<AbortController | null>(null);
+  const verifyRequestRef = useRef<RequestHandle<{
+    verified: boolean;
+    reason?: string;
+  }> | null>(null);
+
+  const resendRequestRef = useRef<RequestHandle<{
+    devCode?: string;
+  }> | null>(null);
 
   /**
    * Abort whichever requests are currently in flight.
    * Safe to call unconditionally; a no-op when nothing is running.
    */
   const abortAllInFlight = () => {
-    verifyAbortRef.current?.abort();
-    verifyAbortRef.current = null;
-    resendAbortRef.current?.abort();
-    resendAbortRef.current = null;
+    verifyRequestRef.current?.abort();
+    verifyRequestRef.current = null;
+    resendRequestRef.current?.abort();
+    resendRequestRef.current = null;
   };
 
   /* ---------- Abort on unmount ----------
@@ -222,27 +171,31 @@ function OtpModalBody({
   const handleSubmit = async () => {
     if (!isComplete || verifying) return;
 
-  
-    verifyAbortRef.current?.abort();
+    // Supersede any previous in-flight verify. Defensive: the UI
+    // can't normally reach this while `verifying` is true, but a
+    // fast double-click plus a stale `verifying=false` could.
+    verifyRequestRef.current?.abort();
 
-    const controller = new AbortController();
-    verifyAbortRef.current = controller;
+    // Trigger the mutation and RETAIN the handle. Do NOT await
+    // the trigger itself — the handle is what we cancel with.
+    const request = verifyOtp({
+      channel,
+      identity,
+      otp: code,
+    });
+    verifyRequestRef.current = request;
 
     setVerifying(true);
     setError(null);
 
     try {
-      const result = await verifyOtp({
-        channel,
-        identity,
-        otp: code,
-        signal: controller.signal,
-      });
+      const result = await request.unwrap();
 
-      // A stale resolve (from a superseded attempt) must not touch
-      // state. `controller.signal.aborted` catches the case where
-      // abort raced the response.
-      if (controller.signal.aborted) return;
+      // A stale resolve (superseded by a newer attempt) must not
+      // touch state. Identity check covers the case where the
+      // request was aborted between the server response arriving
+      // and this line running.
+      if (verifyRequestRef.current !== request) return;
 
       if (result.verified) {
         onSuccess();
@@ -250,17 +203,20 @@ function OtpModalBody({
         setError(result.reason ?? "Incorrect code. Please try again.");
         setVerifying(false);
       }
-    } catch (err) {
-      // Cancellation is not a user-facing error — the modal is
-      // either closing or a newer attempt superseded this one.
-      if (isAbortError(err) || controller.signal.aborted) return;
+    } catch {
+      // Cancellation is not a user-facing error. If the ref no
+      // longer points at THIS request, the request was aborted
+      // or superseded — either way the modal no longer owns it.
+      // No error string, no state write.
+      if (verifyRequestRef.current !== request) return;
 
       setError("Could not verify the code. Please try again.");
       setVerifying(false);
     } finally {
       // Only clear the ref if we're still the current attempt.
-      if (verifyAbortRef.current === controller) {
-        verifyAbortRef.current = null;
+      // A newer request must not have its ref clobbered here.
+      if (verifyRequestRef.current === request) {
+        verifyRequestRef.current = null;
       }
     }
   };
@@ -268,38 +224,38 @@ function OtpModalBody({
   const handleResend = async () => {
     if (!canResend) return;
 
-    resendAbortRef.current?.abort();
-    const controller = new AbortController();
-    resendAbortRef.current = controller;
+    resendRequestRef.current?.abort();
+
+    const request = sendOtp({
+      channel,
+      identity,
+    });
+    resendRequestRef.current = request;
 
     setResending(true);
     setError(null);
 
     try {
-      const result = await sendOtp({
-        channel,
-        identity,
-        signal: controller.signal,
-      });
+      const result = await request.unwrap();
 
-      if (controller.signal.aborted) return;
+      if (resendRequestRef.current !== request) return;
 
       if (result.devCode) {
         setHintCode(result.devCode);
       }
       setResendCooldown(RESEND_COOLDOWN_SECONDS);
-    } catch (err) {
-      if (isAbortError(err) || controller.signal.aborted) return;
+    } catch {
+      if (resendRequestRef.current !== request) return;
 
       setError("Could not resend the code. Please try again.");
     } finally {
-      if (resendAbortRef.current === controller) {
-        resendAbortRef.current = null;
+      if (resendRequestRef.current === request) {
+        resendRequestRef.current = null;
       }
-      // Only unset `resending` if the modal is still open and this
-      // is still the active attempt. On abort the component is
-      // unmounting, so setting state would warn.
-      if (!controller.signal.aborted) {
+      // Only unset `resending` if this request is still the
+      // active one — a superseded request must not clear the
+      // newer request's loading flag.
+      if (resendRequestRef.current === request) {
         setResending(false);
       }
     }
@@ -308,11 +264,14 @@ function OtpModalBody({
   /**
    * Close the modal — unconditionally.
    *
-   * Any in-flight send/verify is aborted first, so the network
-   * request is genuinely cancelled (via fetchBaseQuery's signal →
-   * fetch → AbortController). AbortError from the cancelled
-   * promise is swallowed inside the handlers above; this function
-   * does not need to await anything.
+   * Any in-flight send/verify handle is aborted via
+   * `request.abort()`, which reaches RTK Query's internal
+   * AbortController and cancels the fetch. The cancelled
+   * promise rejects; the handlers above recognise the
+   * cancellation by request identity and stay silent.
+   *
+   * The parent owns "modal open" state, so `onClose()` is the
+   * one and only signal that the modal should disappear.
    */
   const handleClose = () => {
     abortAllInFlight();

@@ -1,53 +1,176 @@
 // ============================================================
 // src/pages/checkout/sections/CouponSection.tsx
-// Coupon accordion.
+// Coupon accordion — self-contained widget.
 //
-// Controlled: the parent owns open, value, applied, error,
-// and validating. This section reports changes up and runs
-// no API calls of its own.
+// Owns everything about the coupon UI:
+//   - accordion open/closed
+//   - the input text
+//   - the applied code + the subtotal it was validated against
+//   - inline validation error
+//   - the in-flight flag
+//   - the validateCoupon API call itself
 //
-// Behaviour mirrors the source:
-//   - header toggle with ticket icon + plus glyph
-//   - body (open only) with input + Apply/Remove button
-//   - input is read-only when a coupon is applied
-//   - the button's label toggles between Apply and Remove
-//   - Enter in the input triggers the same handler as the
-//     button
-//   - error is rendered BELOW the card, matching the source
-//     (not inside the body)
+// The parent only supplies:
+//   - `subtotal`  — the amount the coupon is computed against
+//                   (parent owns plan selection, so it owns price)
+//   - `locked`    — whether the user is allowed to use a coupon
+//                   (parent owns `verifiedBy`)
+//   - `onApply`   — a single outcome callback
+//
+// Plan-change behaviour:
+//   When `subtotal` changes, an applied coupon becomes invalid
+//   (its discount was computed against the old price). We detect
+//   this DURING RENDER by comparing the stored subtotal with the
+//   current one, and reset inline — no useEffect, no cascading
+//   renders, no flash of stale discount.
+//
+//   This is the React-idiomatic "adjust state when a prop
+//   changes" pattern from the docs:
+//   https://react.dev/learn/you-might-not-need-an-effect
 // ============================================================
 
+import { useCallback, useState } from "react";
+
 import { COUPON_MAX_LENGTH } from "../constants";
+import { useValidateCouponMutation } from "../../../services/checkoutApi";
 
 interface CouponSectionProps {
-  /** Whether the accordion body is expanded. */
-  open: boolean;
-  /** Current input value. The parent uppercases before storing. */
-  value: string;
-  /** Applied coupon code, or null when none. */
-  applied: string | null;
-  /** Inline error message, or "" for none. */
-  error: string;
-  /** True while a coupon validation request is in flight. */
-  validating: boolean;
-  /** Called when the header is clicked to toggle open. */
-  onToggle: () => void;
-  /** Called when the input value changes. */
-  onValueChange: (value: string) => void;
-  /** Called when the Apply/Remove button is clicked (or Enter pressed). */
-  onApplyOrRemove: () => void;
+  /** Amount the coupon is computed against (the current plan price). */
+  subtotal: number;
+  /** Fires when the applied coupon changes. `null` code = none. */
+  onApply: (result: { code: string | null; discount: number }) => void;
+  /**
+   * True when the user is not yet verified. The accordion will
+   * not open and the header click surfaces a "verify first"
+   * hint instead.
+   */
+  locked?: boolean;
+}
+
+/**
+ * The applied coupon is stored together with the subtotal it
+ * was validated against. The invariant we maintain is:
+ *
+ *   applied === null || applied.subtotal === current subtotal
+ *
+ * If that invariant is ever violated by a `subtotal` prop
+ * change, we reset the coupon during render.
+ */
+interface AppliedCoupon {
+  code: string;
+  subtotal: number;
 }
 
 export function CouponSection({
-  open,
-  value,
-  applied,
-  error,
-  validating,
-  onToggle,
-  onValueChange,
-  onApplyOrRemove,
+  subtotal,
+  onApply,
+  locked = false,
 }: CouponSectionProps) {
+  /* ---------- Local state ---------- */
+
+  const [open, setOpen] = useState(false);
+  const [input, setInput] = useState("");
+  const [applied, setApplied] = useState<AppliedCoupon | null>(null);
+  const [error, setError] = useState("");
+  const [validating, setValidating] = useState(false);
+
+  /* ---------- Mutation ---------- */
+
+  const [validateCoupon] = useValidateCouponMutation();
+
+  /* ---------- Report outcome to the parent ---------- */
+
+  const report = useCallback(
+    (code: string | null, discount: number) => {
+      onApply({ code, discount });
+    },
+    [onApply],
+  );
+
+  /* ------------------------------------------------------------
+     Adjust state during render when `subtotal` changes.
+     ------------------------------------------------------------
+     If the user switches plans while a coupon is applied, the
+     applied discount was computed against the OLD price. We
+     cannot call the server here (no effects in render), but we
+     CAN invalidate the local "applied" marker immediately.
+
+     The parent notification (`report`) must NOT happen during
+     render — that would be "update a component while rendering
+     a different component". We defer it to a microtask, which
+     React batches into the same commit, so the parent never
+     sees the stale discount in its own render output.
+     ------------------------------------------------------------ */
+
+  if (applied && applied.subtotal !== subtotal) {
+    setApplied(null);
+    setInput("");
+    setError("Coupon no longer valid for this plan.");
+    // Defer to keep render pure. React batches this with the
+    // current commit, so no extra paint occurs.
+    queueMicrotask(() => report(null, 0));
+  }
+
+  /* ---------- Handlers ---------- */
+
+  const handleToggle = () => {
+    if (locked) {
+      // Keep the existing UX: surface a hint instead of opening.
+      setError("Please verify your details first");
+      return;
+    }
+    setOpen((o) => !o);
+    if (error) setError("");
+  };
+
+  const handleInputChange = (value: string) => {
+    setInput(value);
+    if (error) setError("");
+  };
+
+  /**
+   * Apply or remove. Remove is synchronous and local; apply is
+   * an API call whose result decides whether the coupon becomes
+   * "applied".
+   */
+  const handleApplyOrRemove = useCallback(async () => {
+    // ----- Remove path -----
+    if (applied) {
+      setApplied(null);
+      setInput("");
+      setError("");
+      report(null, 0);
+      return;
+    }
+
+    // ----- Apply path -----
+    const code = input.trim().toUpperCase();
+    if (!code) {
+      setError("Please enter a coupon code");
+      return;
+    }
+
+    setValidating(true);
+    try {
+      const result = await validateCoupon({ code, subtotal }).unwrap();
+      if (result.valid) {
+        setApplied({ code, subtotal });
+        setInput(code);
+        setError("");
+        setOpen(true);
+        report(code, result.discount);
+      } else {
+        setError(result.reason ?? "Invalid coupon code");
+      }
+    } catch {
+      setError("Could not validate coupon. Please try again.");
+    } finally {
+      setValidating(false);
+    }
+  }, [applied, input, subtotal, validateCoupon, report]);
+
+  /* ---------- Render ---------- */
+
   const hasError = error.length > 0;
   const isApplied = applied !== null;
 
@@ -55,7 +178,7 @@ export function CouponSection({
     if (e.key === "Enter") {
       e.preventDefault();
       if (validating) return;
-      onApplyOrRemove();
+      handleApplyOrRemove();
     }
   };
 
@@ -65,7 +188,7 @@ export function CouponSection({
         {/* ---------- Header ---------- */}
         <button
           type="button"
-          onClick={onToggle}
+          onClick={handleToggle}
           aria-expanded={open}
           aria-controls="coupon-body"
           className="w-full h-[45px] lg:h-[40px] px-3 flex items-center gap-3"
@@ -111,8 +234,8 @@ export function CouponSection({
           <div id="coupon-body" className="flex gap-2 px-3 pb-3">
             <input
               type="text"
-              value={value}
-              onChange={(e) => onValueChange(e.target.value.toUpperCase())}
+              value={input}
+              onChange={(e) => handleInputChange(e.target.value.toUpperCase())}
               onKeyDown={handleKeyDown}
               readOnly={isApplied}
               maxLength={COUPON_MAX_LENGTH}
@@ -122,7 +245,7 @@ export function CouponSection({
             />
             <button
               type="button"
-              onClick={onApplyOrRemove}
+              onClick={handleApplyOrRemove}
               disabled={validating}
               className={[
                 "h-[36px] px-4 rounded-md text-white text-[14px] font-medium transition",
@@ -131,11 +254,7 @@ export function CouponSection({
                   : "bg-indigo-600 hover:bg-indigo-700",
               ].join(" ")}
             >
-              {validating
-                ? "…"
-                : isApplied
-                  ? "Remove"
-                  : "Apply"}
+              {validating ? "…" : isApplied ? "Remove" : "Apply"}
             </button>
           </div>
         )}

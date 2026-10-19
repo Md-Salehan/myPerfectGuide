@@ -79,7 +79,7 @@ export function FinalCta() {
             ============================================================ */}
         <div className="relative hidden lg:flex justify-center">
           <img
-            src={API_BASE_URL + "/course-detail-asset/person.png"}
+            src={import.meta.env.BASE_URL + "images/course-detail-asset/person.png"}
             alt="Student talking to course advisor"
             className="relative z-10 w-[430px] max-w-full rounded-2xl"
           />
