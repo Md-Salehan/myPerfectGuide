@@ -8,6 +8,7 @@
 //   - components/layout/Header.tsx
 // ============================================================
 
+import { ROUTES } from "../routes/paths";
 import type { NavLink } from "../types/common";
 
 /**
@@ -26,30 +27,35 @@ import type { NavLink } from "../types/common";
 export const NAV_LINKS: readonly NavLink[] = [
   {
     label: "Courses",
-    href: "#",
+    href: import.meta.env.VITE_API_BASE_URL + ROUTES.ALL_COURSES,
     variant: "primary",
     hasDropdown: true,
   },
+  // {
+  //   label: "AI Course",
+  //   href: "#",
+  //   variant: "highlight",
+  //   badge: "NEW",
+  // },
+  // {
+  //   label: "Placements",
+  //   href: "#",
+  //   variant: "plain",
+  // },
+  // {
+  //   label: "Resources",
+  //   href: "#",
+  //   variant: "plain",
+  //   hasDropdown: true,
+  // },
   {
-    label: "AI Course",
-    href: "#",
-    variant: "highlight",
-    badge: "NEW",
-  },
-  {
-    label: "Placements",
-    href: "#",
+    label: "About Us",
+    href: import.meta.env.VITE_API_BASE_URL + ROUTES.ABOUT,
     variant: "plain",
-  },
-  {
-    label: "Resources",
-    href: "#",
-    variant: "plain",
-    hasDropdown: true,
   },
   {
     label: "Request Callback",
-    href: "#",
+    href: import.meta.env.VITE_API_BASE_URL + ROUTES.ABOUT,
     variant: "plain",
   },
 ] as const;
@@ -75,22 +81,17 @@ export const MOBILE_NAV_LINKS: readonly NavLink[] = [
     href: "#",
     variant: "highlight",
   },
+
   {
-    label: "AI Course",
-    href: "#",
-    variant: "plain",
-    badge: "NEW",
-  },
-  {
-    label: "Placements",
-    href: "#",
+    label: "About Us",
+    href: import.meta.env.VITE_API_BASE_URL + ROUTES.ABOUT,
     variant: "plain",
   },
-  {
-    label: "Resources",
-    href: "#",
-    variant: "plain",
-  },
+  // {
+  //   label: "Terms & Conditions",
+  //   href: import.meta.env.VITE_API_BASE_URL + ROUTES.TERMS,
+  //   variant: "plain",
+  // },
   {
     label: "Request Callback",
     href: "#",

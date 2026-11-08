@@ -17,7 +17,6 @@ import type { ReactNode } from "react";
 
 import { useAppDispatch } from "../../../../app/hooks";
 import { openCallback } from "../../../../features/callback/callbackSlice";
-import { API_BASE_URL } from "../../../../constants/api";
 
 export function FinalCta() {
   const dispatch = useAppDispatch();

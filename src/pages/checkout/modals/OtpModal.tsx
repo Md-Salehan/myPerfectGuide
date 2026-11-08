@@ -1,7 +1,15 @@
 // ============================================================
 // src/pages/checkout/modals/OtpModal.tsx
-// Unified, channel-agnostic OTP verification modal.
-
+// Phone-only OTP verification modal (Firebase Phone Auth).
+//
+// Contract:
+//   sendOtp(identity)      → Promise<{ devCode?: string }>
+//   verifyOtp(otp)         → Promise<{ verified, reason? }>
+//
+// No RequestHandle / abort: Firebase phone sign-in has no
+// cancellation token. Stale responses are discarded via an
+// attempt-id counter (React's recommended pattern for
+// "ignore the result of a superseded async call").
 // ============================================================
 
 import { useEffect, useRef, useState } from "react";
@@ -14,53 +22,21 @@ import {
   RESEND_COOLDOWN_SECONDS,
 } from "../constants";
 
-import type { VerifyChannel } from "../types";
-
-/** The verification channel this modal is currently driving. */
-export type OtpChannel = VerifyChannel;
-
-
-export interface RequestHandle<T> {
-  unwrap(): Promise<T>;
-  abort(): void;
-}
-
 interface OtpModalProps {
   /** Whether the modal is visible. */
   open: boolean;
-  /** Which channel is being verified. Drives copy only. */
-  channel: OtpChannel;
-  /** The phone number or email the code was sent to. */
+  /** The phone number the code was sent to (10 digits). */
   identity: string;
   /**
-   * Dev hint code returned by the send call. When absent,
-   * the hint is not rendered. Real backends omit this.
+   * Trigger the send (or resend). Resolves once Firebase has
+   * accepted the request; rejects on reCAPTCHA / Firebase error.
    */
-  devCode?: string;
+  sendOtp: (identity: string) => Promise<{ devCode?: string }>;
   /**
-   * Trigger the send (or resend) mutation for `channel` +
-   * `identity`.
-   *
-   * MUST return the RTK Query request handle — do NOT await
-   * inside this callback. The modal retains the handle so it
-   * can call `.abort()` later.
+   * Verify the entered code. Resolves with `verified: false`
+   * (never rejects) on a wrong/expired/superseded code.
    */
-  sendOtp: (args: {
-    channel: OtpChannel;
-    identity: string;
-  }) => RequestHandle<{ devCode?: string }>;
-  /**
-   * Trigger the verify mutation for `channel` + `identity`.
-   *
-   * MUST return the RTK Query request handle — do NOT await
-   * inside this callback. The modal retains the handle so it
-   * can call `.abort()` later.
-   */
-  verifyOtp: (args: {
-    channel: OtpChannel;
-    identity: string;
-    otp: string;
-  }) => RequestHandle<{ verified: boolean; reason?: string }>;
+  verifyOtp: (otp: string) => Promise<{ verified: boolean; reason?: string }>;
   /** Called when verification succeeds. Parent closes the modal. */
   onSuccess: () => void;
   /** Called when the user requests to close (X / Escape / backdrop). */
@@ -72,13 +48,13 @@ interface OtpModalProps {
    ------------------------------------------------------------ */
 
 export function OtpModal(props: OtpModalProps) {
-  const { open, channel, identity, devCode } = props;
-
-  const resetKey = `${channel}:${identity}:${devCode ?? ""}`;
+  const { open, identity } = props;
 
   if (!open) return null;
 
-  return <OtpModalBody key={resetKey} {...props} />;
+  // Remount the body whenever the identity changes, so a fresh
+  // phone number always starts with empty digits + a fresh timer.
+  return <OtpModalBody key={identity} {...props} />;
 }
 
 /* ------------------------------------------------------------
@@ -86,11 +62,9 @@ export function OtpModal(props: OtpModalProps) {
    ------------------------------------------------------------ */
 
 function OtpModalBody({
-  channel,
   identity,
-  devCode,
-  sendOtp,
   verifyOtp,
+  sendOtp,
   onSuccess,
   onClose,
 }: OtpModalProps) {
@@ -103,42 +77,11 @@ function OtpModalBody({
   const [error, setError] = useState<string | null>(null);
   const [resendCooldown, setResendCooldown] = useState(RESEND_COOLDOWN_SECONDS);
   const [resending, setResending] = useState(false);
-  // Local dev-hint mirror, so a resend can update it.
-  const [hintCode, setHintCode] = useState<string | undefined>(devCode);
 
+  /* ---------- Stale-attempt guards ---------- */
 
-  const verifyRequestRef = useRef<RequestHandle<{
-    verified: boolean;
-    reason?: string;
-  }> | null>(null);
-
-  const resendRequestRef = useRef<RequestHandle<{
-    devCode?: string;
-  }> | null>(null);
-
-  /**
-   * Abort whichever requests are currently in flight.
-   * Safe to call unconditionally; a no-op when nothing is running.
-   */
-  const abortAllInFlight = () => {
-    verifyRequestRef.current?.abort();
-    verifyRequestRef.current = null;
-    resendRequestRef.current?.abort();
-    resendRequestRef.current = null;
-  };
-
-  /* ---------- Abort on unmount ----------
-     The modal is unmounted by the parent on close (via the outer
-     wrapper returning null), so this covers the "closed" case
-     as well as "navigated away".
-     ------------------------------------------------------------ */
-
-  useEffect(() => {
-    return () => {
-      abortAllInFlight();
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  const verifyAttemptId = useRef(0);
+  const resendAttemptId = useRef(0);
 
   /* ---------- Resend cooldown ticker ---------- */
 
@@ -158,44 +101,21 @@ function OtpModalBody({
   const isComplete = code.length === OTP_LENGTH && digits.every(Boolean);
   const canResend = !resending && !verifying && resendCooldown === 0;
 
-  // Channel-specific copy. This is the ONLY place the modal
-  // branches on `channel` — everything else is channel-agnostic.
-  const title = channel === "phone" ? "Verify your phone" : "Verify your email";
-  const description =
-    channel === "phone"
-      ? `Enter the ${OTP_LENGTH}-digit code sent to +91 ${identity}.`
-      : `Enter the ${OTP_LENGTH}-digit code sent to ${identity}.`;
+  const title = "Verify your phone";
+  const description = `Enter the ${OTP_LENGTH}-digit code sent to +91 ${identity}.`;
 
   /* ---------- Handlers ---------- */
 
   const handleSubmit = async () => {
     if (!isComplete || verifying) return;
 
-    // Supersede any previous in-flight verify. Defensive: the UI
-    // can't normally reach this while `verifying` is true, but a
-    // fast double-click plus a stale `verifying=false` could.
-    verifyRequestRef.current?.abort();
-
-    // Trigger the mutation and RETAIN the handle. Do NOT await
-    // the trigger itself — the handle is what we cancel with.
-    const request = verifyOtp({
-      channel,
-      identity,
-      otp: code,
-    });
-    verifyRequestRef.current = request;
-
+    const myAttempt = ++verifyAttemptId.current;
     setVerifying(true);
     setError(null);
 
     try {
-      const result = await request.unwrap();
-
-      // A stale resolve (superseded by a newer attempt) must not
-      // touch state. Identity check covers the case where the
-      // request was aborted between the server response arriving
-      // and this line running.
-      if (verifyRequestRef.current !== request) return;
+      const result = await verifyOtp(code);
+      if (myAttempt !== verifyAttemptId.current) return; // superseded
 
       if (result.verified) {
         onSuccess();
@@ -204,78 +124,31 @@ function OtpModalBody({
         setVerifying(false);
       }
     } catch {
-      // Cancellation is not a user-facing error. If the ref no
-      // longer points at THIS request, the request was aborted
-      // or superseded — either way the modal no longer owns it.
-      // No error string, no state write.
-      if (verifyRequestRef.current !== request) return;
-
+      if (myAttempt !== verifyAttemptId.current) return;
       setError("Could not verify the code. Please try again.");
       setVerifying(false);
-    } finally {
-      // Only clear the ref if we're still the current attempt.
-      // A newer request must not have its ref clobbered here.
-      if (verifyRequestRef.current === request) {
-        verifyRequestRef.current = null;
-      }
     }
   };
 
   const handleResend = async () => {
     if (!canResend) return;
 
-    resendRequestRef.current?.abort();
-
-    const request = sendOtp({
-      channel,
-      identity,
-    });
-    resendRequestRef.current = request;
-
+    const myAttempt = ++resendAttemptId.current;
     setResending(true);
     setError(null);
 
     try {
-      const result = await request.unwrap();
-
-      if (resendRequestRef.current !== request) return;
-
-      if (result.devCode) {
-        setHintCode(result.devCode);
-      }
+      await sendOtp(identity);
+      if (myAttempt !== resendAttemptId.current) return;
       setResendCooldown(RESEND_COOLDOWN_SECONDS);
     } catch {
-      if (resendRequestRef.current !== request) return;
-
+      if (myAttempt !== resendAttemptId.current) return;
       setError("Could not resend the code. Please try again.");
     } finally {
-      if (resendRequestRef.current === request) {
-        resendRequestRef.current = null;
-      }
-      // Only unset `resending` if this request is still the
-      // active one — a superseded request must not clear the
-      // newer request's loading flag.
-      if (resendRequestRef.current === request) {
+      if (myAttempt === resendAttemptId.current) {
         setResending(false);
       }
     }
-  };
-
-  /**
-   * Close the modal — unconditionally.
-   *
-   * Any in-flight send/verify handle is aborted via
-   * `request.abort()`, which reaches RTK Query's internal
-   * AbortController and cancels the fetch. The cancelled
-   * promise rejects; the handlers above recognise the
-   * cancellation by request identity and stay silent.
-   *
-   * The parent owns "modal open" state, so `onClose()` is the
-   * one and only signal that the modal should disappear.
-   */
-  const handleClose = () => {
-    abortAllInFlight();
-    onClose();
   };
 
   /* ---------- Render ---------- */
@@ -283,12 +156,11 @@ function OtpModalBody({
   return (
     <Modal
       open
-      onClose={handleClose}
+      onClose={onClose}
       title={title}
       description={description}
     >
       <div className="space-y-5">
-        {/* OTP input — the ONLY OTP input in the app */}
         <OtpInput
           value={digits}
           onChange={(next) => {
@@ -301,17 +173,6 @@ function OtpModalBody({
           autoFocus
         />
 
-        {/* Dev hint */}
-        {hintCode && (
-          <p className="text-center text-[12px] text-slate-400">
-            Dev code:{" "}
-            <span className="font-mono font-semibold text-slate-600">
-              {hintCode}
-            </span>
-          </p>
-        )}
-
-        {/* Inline error */}
         {error && (
           <p
             role="alert"
@@ -332,7 +193,6 @@ function OtpModalBody({
           </p>
         )}
 
-        {/* Verify button */}
         <button
           type="button"
           onClick={handleSubmit}
@@ -347,7 +207,6 @@ function OtpModalBody({
           {verifying ? "Verifying…" : "Verify"}
         </button>
 
-        {/* Resend link */}
         <p className="text-center text-[13.5px] text-slate-500">
           Didn't get the code?{" "}
           {canResend ? (

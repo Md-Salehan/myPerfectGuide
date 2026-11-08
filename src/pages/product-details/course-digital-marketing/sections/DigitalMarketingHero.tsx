@@ -1,9 +1,10 @@
 // src/pages/product-details/course-digital-marketing/sections/DigitalMarketingHero.tsx
 // Wraps the reusable HeroSection with the Digital Marketing course content.
 
-import { SidebarEnrollCardDigitalMarketing } from "../../../../components/product/SidebarEnrollCardDigitalMarketing";
+
 import type { HeroSectionProps } from "../../../../components/product/sections";
 import { HeroSection } from "../../../../components/product/sections";
+import { SidebarEnrollCard } from "../../../../components/product/SidebarEnrollCard";
 
 export function DigitalMarketingHero() {
   const props: HeroSectionProps = {
@@ -82,7 +83,46 @@ export function DigitalMarketingHero() {
       { label: "Duration:", value: "15 weeks" },
       { label: "Batch starts:", value: "15 Oct 2026" },
     ],
-    sidebarCard: <SidebarEnrollCardDigitalMarketing />,
+    sidebarCard: 
+      <SidebarEnrollCard
+        courseId="digital-marketing-2026"
+        promoThumbnail={{ type: "video", src: "/video/ads-promo.mp4", poster: "/img/ads-promo.jpg" }}
+        footNote="Premium seats are limited per batch."
+        plans={[
+          {
+            key: "year",
+            label: "Standard — ₹4,999",
+            price: 4999,
+            original: 10000,
+            off: 50,
+            ctaLabel: "Enroll in Standard — ₹4,999",
+            features: [
+              "15-module curriculum",
+              "Live interactive classes",
+              "Lifetime access to recordings",
+              "Capstone project",
+              "Certificate of completion",
+            ],
+          },
+          {
+            key: "life",
+            label: "Premium — ₹14,999",
+            price: 14999,
+            original: 60000,
+            off: 75,
+            ctaLabel: "Enroll in Premium — ₹14,999",
+
+            note:
+              "Your ₹10,000 Placement & Internship fee is 100% refundable if we don't deliver your internships and placement.",
+            features: [
+              "Everything in Standard",
+              "2 real internships & placement ",
+              "₹6 LPA+ placement promise",
+            ],
+          },
+        ]}
+      />
+    ,
   };
 
   return <HeroSection {...props} />;

@@ -357,7 +357,7 @@ export function RequestCallback({
       <button
         type="submit"
         disabled={submitting}
-        className="btn btn-primary w-full py-3.5 text-[15px] disabled:opacity-70 disabled:cursor-not-allowed"
+        className="btn btn-primary w-full py-3.5 text-[15px] disabled:opacity-70 disabled:cursor-not-allowed cursor-pointer"
       >
         {submitting ? (
           <>

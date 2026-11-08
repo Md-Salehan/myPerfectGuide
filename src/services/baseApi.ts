@@ -1,4 +1,5 @@
 import { createApi, fetchBaseQuery } from "@reduxjs/toolkit/query/react";
+import { getFirebaseAuthClient } from "../config/firebase";
 
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "/api";
@@ -10,11 +11,14 @@ export const baseApi = createApi({
   baseQuery: fetchBaseQuery({
     baseUrl: API_BASE_URL,
     // Future: attach auth headers here, e.g.
-    // prepareHeaders: (headers, { getState }) => {
-    //   const token = (getState() as RootState).auth?.token;
-    //   if (token) headers.set("authorization", `Bearer ${token}`);
-    //   return headers;
-    // },
+    prepareHeaders: async (headers) => {
+      const user = getFirebaseAuthClient().currentUser;
+      if (user) {
+        const token = await user.getIdToken();
+        headers.set("authorization", `Bearer ${token}`);
+      }
+      return headers;
+    },
   }),
 
   // No endpoints yet — feature APIs will extend this instance:
@@ -29,7 +33,7 @@ export const baseApi = createApi({
    * for this app once a backend exists:
    *   "Course", "Order", "Lead", "User"
    */
-  tagTypes: [],
+  tagTypes: ['Auth'],
 });
 
 /**

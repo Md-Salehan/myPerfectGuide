@@ -1,42 +1,26 @@
 // ============================================================
-// src/pages/checkout/CheckoutPage.tsx
+// src/pages/checkout/index.tsx
 // Checkout page orchestrator.
 //
-// Responsibilities:
-//   - Read courseId + plan from the URL, resolve them against
-//     the central catalogue (src/data/courses.ts) and redirect
-//     to "/" if invalid
-//   - Own all page state (plan, phone, email, coupon, gst, modals)
-//   - Run all API flows (verify, coupon, gst, order)
-//   - Dispatch checkout:submit / checkout:redirect events
-//   - Render the two-column layout with the mobile reflow
+// Verification architecture (Approach A — verify before order):
 //
-// Data-flow:
-//   URL: ?courseId=<id>&plan=<id>
-//     -> resolveCourseFromParams(searchParams)
-//     -> courses[courseId] + course.plans[plan]
-//     -> every section reads from this resolved pair
-//     -> buildOrderPayload({ courseId, ... })
+//   Phone  → Firebase Phone Auth SDK (SMS OTP).
+//            usePhoneVerification returns plain Promises.
+//            <OtpModal> is phone-only and Promise-native — no
+//            adapters, no fake RequestHandle, no abort shim.
 //
-// OTP architecture:
-//   - One <OtpModal />, one OtpInput, one cooldown ticker.
-//   - The modal is channel-agnostic: it receives `sendOtp`
-//     and `verifyOtp` adapters built here, which translate
-//     { channel, identity, otp } into the correct mutation
-//     trigger.
-//   - The adapters RETURN the RTK Query request handle
-//     unchanged. They do NOT await it. The modal retains the
-//     handle and calls `.abort()` on close; RTK Query's
-//     internal AbortController reaches fetchBaseQuery → fetch.
+//   Email  → Firebase Email Link (sendSignInLinkToEmail).
+//            No modal. The user leaves, clicks the link, and
+//            lands on /auth/email-link, which signs in, refreshes
+//            the ID token, calls /auth/sync, and redirects back
+//            here with ?courseId=…&plan=… preserved.
 //
-// Cancellation model:
-//   - Only the OTP send + verify requests are abortable. The
-//     modal is the only place that retains a handle for them.
-//   - createOrder is NOT aborted on unmount — it is a
-//     consequential mutation (see checkoutApi.ts).
+//   Both   → POST /auth/sync → principal in Redux.
+//   verifiedBy is hydrated from authState.principal on mount so
+//   the email-link round-trip restores the gate after remount.
 // ============================================================
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Navigate, useSearchParams } from "react-router-dom";
 
 import { CheckoutHeader } from "./sections/CheckoutHeader";
@@ -72,11 +56,7 @@ import {
 
 import {
     useCreateOrderMutation,
-    useSendEmailOtpMutation,
-    useSendPhoneOtpMutation,
     useValidateGstMutation,
-    useVerifyEmailOtpMutation,
-    useVerifyPhoneOtpMutation,
 } from "../../services/checkoutApi";
 
 import type {
@@ -87,6 +67,14 @@ import type {
     VerifiedBy,
     OTPChannel,
 } from "./types";
+
+import { useAuth } from "../../features/auth/useAuth";
+import { useEmailLink } from "../../features/auth/useEmailLink";
+import { usePhoneVerification } from "../../features/auth/usePhoneVerification";
+import { useSyncMutation } from "../../services/authApi";
+import { useAppDispatch } from "../../app/hooks";
+import { setPrincipal } from "../../features/auth/authSlice";
+import { getFirebaseAuthClient } from "../../config/firebase";
 
 /* ------------------------------------------------------------
    Constants local to the page
@@ -119,18 +107,10 @@ export function CheckoutPage() {
         [searchParams],
     );
 
-    // A stable courseId for the payload below, even when `resolved`
-    // is null (the redirect branch runs first in that case). Reading
-    // it defensively keeps the hook order identical on every render.
     const courseId = resolved?.course.courseId ?? "";
 
     /* ---------- State ---------- */
 
-    // The URL plan is authoritative on first render. `resolved`
-    // guarantees the plan exists on the course, so no fallback is
-    // needed here — the only reason to reach `DEFAULT_PLAN` would
-    // be a missing `plan` param, which `resolveCourseFromParams`
-    // already normalises.
     const [plan, setPlan] = useState<PlanType>(() => resolved?.plan ?? "year");
     const [channel, setChannel] = useState<OTPChannel>(DEFAULT_OTP_CHANNEL);
     const [phone, setPhone] = useState("");
@@ -144,22 +124,21 @@ export function CheckoutPage() {
     const [errors, setErrors] = useState<CheckoutErrors>(EMPTY_ERRORS);
     const [modal, setModal] = useState<CheckoutModal>(null);
     const [sending, setSending] = useState(false);
+    const [emailLinkSent, setEmailLinkSent] = useState(false);
 
     /* ---------- Mutations ---------- */
-
-    // OTP — used via adapters below; each trigger returns a request
-    // handle the modal retains and can `.abort()`.
-    const [sendPhoneOtp] = useSendPhoneOtpMutation();
-    const [verifyPhoneOtp] = useVerifyPhoneOtpMutation();
-    const [sendEmailOtp] = useSendEmailOtpMutation();
-    const [verifyEmailOtp] = useVerifyEmailOtpMutation();
-
-    // Coupon / GST / order — no cancellation affordance; used
-    // directly with `.unwrap()` at the call sites.
     const [validateGst] = useValidateGstMutation();
     const [createOrder] = useCreateOrderMutation();
+    const [sync] = useSyncMutation();
+    const dispatch = useAppDispatch();
 
-    /* ---------- Effective product (from central data) ---------- */
+    /* ---------- Auth hooks ---------- */
+    const authState = useAuth();
+    const { sendOtp: sendPhoneOtp, verifyOtp: verifyPhoneOtp } =
+        usePhoneVerification("recaptcha-container");
+    const { sendLink } = useEmailLink();
+
+    /* ---------- Effective product ---------- */
 
     const product = resolved?.course ?? null;
 
@@ -172,18 +151,43 @@ export function CheckoutPage() {
         [subtotal, discount],
     );
 
+    /* ------------------------------------------------------------
+       Hydrate verifiedBy after the email-link round-trip.
+       ------------------------------------------------------------
+       EmailLinkPage signs in, calls /auth/sync, then redirects
+       back to /order?courseId=...&plan=..., which remounts this
+       component with fresh state (verifiedBy = null). The Firebase
+       session + principal survive, so we restore the gate here.
+       ------------------------------------------------------------ */
+    useEffect(() => {
+        if (verifiedBy !== null) return;
+        const p = authState.principal;
+        if (!p) return;
+        if (p.phoneVerified) {
+            (() => {
+                setVerifiedBy("phone");
+                if (p.phone) setPhone(p.phone.replace(/^\+91/, ""));
+            })();
+        } else if (p.emailVerified) {
+            (() => {
+                setVerifiedBy("email");
+                if (p.email) setEmail(p.email);
+                setEmailLinkSent(true);
+            })();
+        }
+    }, [authState.principal, verifiedBy]);
+
     /* ---------- Inline-field handlers ---------- */
 
     const handlePhoneChange = useCallback((value: string) => {
         setPhone(value);
-        // Editing the number invalidates a previous phone verification.
         setVerifiedBy((current) => (current === "phone" ? null : current));
         setErrors((e) => (e.phone ? { ...e, phone: "" } : e));
     }, []);
 
     const handleEmailChange = useCallback((value: string) => {
         setEmail(value);
-        // Editing the email invalidates a previous email verification.
+        setEmailLinkSent(false);
         setVerifiedBy((current) => (current === "email" ? null : current));
         setErrors((e) => (e.email ? { ...e, email: "" } : e));
     }, []);
@@ -199,7 +203,6 @@ export function CheckoutPage() {
     const handleSelectPlan = useCallback(
         (next: PlanType) => {
             setPlan(next);
-            // Keep the URL in sync so a reload lands on the same plan.
             setSearchParams(
                 (prev) => {
                     const params = new URLSearchParams(prev);
@@ -208,77 +211,22 @@ export function CheckoutPage() {
                 },
                 { replace: true },
             );
-
         },
         [setSearchParams],
     );
 
     /* ------------------------------------------------------------
-       Channel-bound adapters handed to <OtpModal />
+       Send verification (from VerifySection)
        ------------------------------------------------------------
-       These translate the modal's channel-agnostic call shape
-       ({ channel, identity, otp }) into the correct RTK Query
-       mutation trigger.
-
-       IMPORTANT: the adapters RETURN the request handle from the
-       trigger. They do NOT await it. The modal retains the handle
-       so it can call `.abort()` on close; RTK Query's internal
-       AbortController then cancels the in-flight fetch.
-
-       If the adapter awaited `.unwrap()` here, the handle would
-       be gone by the time the modal tried to cancel it — the
-       exact anti-pattern the RTK Query guide §4.3 warns against.
-       ------------------------------------------------------------ */
-
-    const sendOtpAdapter = useCallback(
-        ({
-            channel: c,
-            identity,
-        }: {
-            channel: VerifyChannel;
-            identity: string;
-        }) => {
-            if (c === "phone") {
-                return sendPhoneOtp({ phone: identity });
-            }
-            return sendEmailOtp({ email: identity });
-        },
-        [sendPhoneOtp, sendEmailOtp],
-    );
-
-    const verifyOtpAdapter = useCallback(
-        ({
-            channel: c,
-            identity,
-            otp,
-        }: {
-            channel: VerifyChannel;
-            identity: string;
-            otp: string;
-        }) => {
-            if (c === "phone") {
-                return verifyPhoneOtp({ phone: identity, otp });
-            }
-            return verifyEmailOtp({ email: identity, otp });
-        },
-        [verifyPhoneOtp, verifyEmailOtp],
-    );
-
-    /* ------------------------------------------------------------
-       Send OTP (from VerifySection)
-       ------------------------------------------------------------
-       The initial send is not cancellable from the UI — the modal
-       opens only after it resolves — so this call site awaits the
-       handle. If we later add a cancel affordance for the initial
-       send, the change is to retain the handle instead of
-       awaiting it inline.
+       Phone  → open OtpModal on success.
+       Email  → send the Firebase sign-in link; user leaves the page.
        ------------------------------------------------------------ */
 
     const handleSendOtp = useCallback(
         async (activeChannel: VerifyChannel) => {
             if (sending || verifiedBy !== null) return;
 
-            // Client-side fast path per channel.
+            /* ---------- Phone ---------- */
             if (activeChannel === "phone") {
                 if (!PHONE_REGEX.test(phone)) {
                     setErrors((e) => ({
@@ -291,15 +239,11 @@ export function CheckoutPage() {
 
                 setSending(true);
                 try {
-                    const result = await sendOtpAdapter({
-                        channel: "phone",
-                        identity: phone,
-                    }).unwrap();
+                    await sendPhoneOtp(phone);
                     setModal({
                         kind: "otp",
                         channel: "phone",
                         identity: phone,
-                        devCode: result.devCode,
                     });
                 } catch {
                     setErrors((e) => ({
@@ -312,7 +256,7 @@ export function CheckoutPage() {
                 return;
             }
 
-            // Email branch
+            /* ---------- Email ---------- */
             const trimmed = email.trim();
             if (!EMAIL_REGEX.test(trimmed)) {
                 setErrors((e) => ({
@@ -325,49 +269,47 @@ export function CheckoutPage() {
 
             setSending(true);
             try {
-                const result = await sendOtpAdapter({
-                    channel: "email",
-                    identity: trimmed,
-                }).unwrap();
-                setModal({
-                    kind: "otp",
-                    channel: "email",
-                    identity: trimmed,
-                    devCode: result.devCode,
-                });
+                await sendLink(trimmed);
+                setEmailLinkSent(true);
             } catch {
                 setErrors((e) => ({
                     ...e,
-                    email: "Could not send the code. Please try again.",
+                    email: "Could not send the link. Please try again.",
                 }));
             } finally {
                 setSending(false);
             }
         },
-        [
-            sending,
-            verifiedBy,
-            phone,
-            email,
-            sendOtpAdapter,
-        ],
+        [sending, verifiedBy, phone, email, sendPhoneOtp, sendLink],
     );
 
     /* ------------------------------------------------------------
-       OTP success
+       Phone OTP success
+       ------------------------------------------------------------
+       1. force-refresh the ID token so the backend sees the
+          latest phone_number claim;
+       2. POST /auth/sync to resolve/create the Student;
+       3. store the principal in Redux;
+       4. set verifiedBy = "phone".
        ------------------------------------------------------------ */
 
-    const handleOtpSuccess = useCallback(() => {
-        // The modal only reports success for the channel it was
-        // opened with, so we can derive `verifiedBy` from the
-        // current modal payload before clearing it.
-        setModal((current) => {
-            if (current?.kind === "otp") {
-                setVerifiedBy(current.channel);
-            }
-            return null;
-        });
-    }, []);
+    const handleOtpSuccess = useCallback(async () => {
+        setModal(null);
+        try {
+            const user = getFirebaseAuthClient().currentUser;
+            if (!user) throw new Error("No Firebase user after phone verification");
+            await user.getIdToken(true);
+
+            const result = await sync().unwrap();
+            dispatch(setPrincipal(result.principal));
+            setVerifiedBy("phone");
+        } catch {
+            setErrors((e) => ({
+                ...e,
+                phone: "Could not register your account. Please try again.",
+            }));
+        }
+    }, [sync, dispatch]);
 
     /* ------------------------------------------------------------
        Coupon
@@ -386,16 +328,10 @@ export function CheckoutPage() {
        ------------------------------------------------------------ */
 
     const handlePay = useCallback(async () => {
-        if (
-            submitting ||
-            verifiedBy === null ||
-            !product ||
-            !planData
-        ) {
+        if (submitting || verifiedBy === null || !product || !planData) {
             return;
         }
 
-        // GST validation (client fast path + server)
         if (isGstFilled(gst)) {
             if (!GSTIN_REGEX.test(gst.number.trim())) {
                 setGstOpen(true);
@@ -426,7 +362,6 @@ export function CheckoutPage() {
         }
         setErrors((e) => ({ ...e, gst: "" }));
 
-        // Order creation
         setSubmitting(true);
         const payload = buildOrderPayload({
             courseId,
@@ -537,7 +472,9 @@ export function CheckoutPage() {
                     onChannelChange={setChannel}
                     onClearError={clearVerifyError}
                     onSendOtp={handleSendOtp}
+                    emailLinkSent={emailLinkSent}
                 />
+                <div id="recaptcha-container" />
 
                 <CouponSection
                     subtotal={subtotal}
@@ -561,11 +498,9 @@ export function CheckoutPage() {
 
             <OtpModal
                 open={modal?.kind === "otp"}
-                channel={modal?.kind === "otp" ? modal.channel : "phone"}
                 identity={modal?.kind === "otp" ? modal.identity : ""}
-                devCode={modal?.kind === "otp" ? modal.devCode : undefined}
-                sendOtp={sendOtpAdapter}
-                verifyOtp={verifyOtpAdapter}
+                sendOtp={sendPhoneOtp}
+                verifyOtp={verifyPhoneOtp}
                 onSuccess={handleOtpSuccess}
                 onClose={() => setModal(null)}
             />

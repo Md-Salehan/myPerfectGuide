@@ -21,7 +21,7 @@ import { RequestCallbackModal } from "../components/callback/RequestCallbackModa
 
 export function MainLayout() {
   return (
-    <>
+    <div className="relative flex min-h-screen flex-col">
       <Header />
 
       <main>
@@ -32,6 +32,6 @@ export function MainLayout() {
 
       <WhatsAppButton />
       <RequestCallbackModal />
-    </>
+    </div>
   );
 }

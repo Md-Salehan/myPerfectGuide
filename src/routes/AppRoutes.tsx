@@ -11,7 +11,7 @@
 // built — see paths.ts for the naming convention.
 // ============================================================
 
-import { Navigate, Route, Routes } from "react-router-dom";
+import {  Route, Routes } from "react-router-dom";
 
 import { MainLayout } from "../layouts/MainLayout";
 
@@ -22,15 +22,19 @@ import { ROUTES } from "./paths";
 import { ContactUsPage } from "../pages/contact/ContactUsPage";
 import { CourseDigitalMarketingPage } from "../pages/product-details/course-digital-marketing";
 import { CheckoutPage } from "../pages/checkout";
+import { HomePage } from "../pages/home";
+import { CoursesPage } from "../pages/CoursesPage";
+import { EmailLinkPage } from "../pages/auth/EmailLinkPage";
 
 export function AppRoutes() {
   return (
     <Routes>
       <Route path={ROUTES.CHECKOUT} element={<CheckoutPage />} />
-      
-      <Route element={<MainLayout />}>
 
-        <Route index element={<Navigate to={ROUTES.COURSE_1} replace />} />
+      <Route element={<MainLayout />}>
+        <Route index path={ROUTES.HOME} element={<HomePage />} />
+        <Route path={ROUTES.ALL_COURSES} element={<CoursesPage />} />
+        {/* <Route index element={<Navigate to={ROUTES.COURSE_1} replace />} /> */}
 
         {/* Course 1 — Complete Taxation & Compliance */}
         <Route path={ROUTES.COURSE_1} element={<CourseTaxationCompliancePage />} />
@@ -38,7 +42,8 @@ export function AppRoutes() {
 
         <Route path={ROUTES.ABOUT} element={<AboutUsPage />} />
         <Route path={ROUTES.CONTACT} element={<ContactUsPage />} />
-        <Route path="*" element={<Navigate to={ROUTES.COURSE_1} replace />} />
+        <Route path={ROUTES.AUTH_EMAIL_LINK} element={<EmailLinkPage />} />
+        {/* <Route path="*" element={<Navigate to={ROUTES.COURSE_1} replace />} /> */}
       </Route>
     </Routes>
   );

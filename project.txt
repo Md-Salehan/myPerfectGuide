@@ -1,0 +1,366 @@
+
+
+## Frontend architecture summary
+
+From the current workspace state and the live app entry points in package.json, main.tsx, App.tsx, AppRoutes.tsx, and baseApi.ts, this is a Vite + React 19 + TypeScript frontend with:
+
+- Redux Toolkit + React Redux for local state
+- RTK Query for API layer scaffolding
+- React Router for page navigation
+- Tailwind-based styling with shared CSS utilities
+- Course catalog, checkout, and product-detail flows built as routed pages
+- No Firebase or auth provider is configured in the current source
+
+---
+
+## 1) Complete folder tree
+
+src
+├── .DS_Store
+├── App.css
+├── App.tsx
+├── index.css
+├── main.tsx
+├── app
+│   ├── hooks.ts
+│   └── store.ts
+├── assets
+│   ├── hero.png
+│   ├── react.svg
+│   └── vite.svg
+├── components
+│   ├── callback
+│   │   ├── RequestCallback.tsx
+│   │   └── RequestCallbackModal.tsx
+│   ├── common
+│   │   ├── Badge.tsx
+│   │   ├── Banner.tsx
+│   │   ├── Button.tsx
+│   │   ├── CourseCard.tsx
+│   │   ├── FooterBanner.tsx
+│   │   ├── Logo.tsx
+│   │   ├── Modal.tsx
+│   │   ├── OtpInput.tsx
+│   │   └── Tag.tsx
+│   ├── layout
+│   │   ├── Footer.tsx
+│   │   ├── Header.tsx
+│   │   └── WhatsAppButton.tsx
+│   └── product
+│       ├── SidebarEnrollCard.tsx
+│       └── sections
+│           ├── CourseHighlights.tsx
+│           ├── HeroSection.tsx
+│           ├── ToolsYouMaster.tsx
+│           └── index.ts
+├── constants
+│   ├── api.ts
+│   ├── footerLinks.ts
+│   ├── navigation.ts
+│   └── site.ts
+├── data
+│   └── courses.ts
+├── features
+│   ├── callback
+│   │   └── callbackSlice.ts
+│   └── ui
+│       └── uiSlice.ts
+├── layouts
+│   └── MainLayout.tsx
+├── pages
+│   ├── CoursesPage
+│   │   ├── data
+│   │   │   └── constants.ts
+│   │   ├── hooks
+│   │   │   └── useCourseFilters.ts
+│   │   ├── sections
+│   │   │   ├── ActiveFilters.tsx
+│   │   │   ├── CourseFilters.tsx
+│   │   │   ├── CourseListing.tsx
+│   │   │   ├── CourseSearch.tsx
+│   │   │   └── PageHeader.tsx
+│   │   ├── types.ts
+│   │   ├── utils
+│   │   │   └── courseFilters.ts
+│   │   └── index.tsx
+│   ├── about
+│   │   └── AboutUsPage.tsx
+│   ├── checkout
+│   │   ├── constants.ts
+│   │   ├── index.tsx
+│   │   ├── modals
+│   │   │   ├── OtpModal.tsx
+│   │   │   └── PayErrorModal.tsx
+│   │   ├── sections
+│   │   │   ├── CheckoutHeader.tsx
+│   │   │   ├── CouponSection.tsx
+│   │   │   ├── GstSection.tsx
+│   │   │   ├── OrderDetailsSection.tsx
+│   │   │   ├── PayBar.tsx
+│   │   │   ├── ReceiptSection.tsx
+│   │   │   └── VerifySection.tsx
+│   │   ├── types.ts
+│   │   └── utils.ts
+│   ├── contact
+│   │   └── ContactUsPage.tsx
+│   ├── home
+│   │   ├── data
+│   │   ├── index.tsx
+│   │   ├── renderRich.tsx
+│   │   └── sections
+│   │       ├── HomeCatalog.tsx
+│   │       ├── HomeEnroll.tsx
+│   │       ├── HomeHero.tsx
+│   │       ├── HomeLeadForm.tsx
+│   │       ├── HomeOutcomes.tsx
+│   │       ├── HomeProcess.tsx
+│   │       ├── HomeStats.tsx
+│   │       ├── HomeTestimonials.tsx
+│   │       └── HomeTrustStrip.tsx
+│   └── product-details
+│       ├── course-digital-marketing
+│       │   ├── data
+│       │   │   ├── faqData.ts
+│       │   │   └── reviewsData.ts
+│       │   ├── index.tsx
+│       │   └── sections
+│       │       ├── CareerOutcomes.tsx
+│       │       ├── Certifications.tsx
+│       │       ├── CourseHighlights.tsx
+│       │       ├── CourseIncludes.tsx
+│       │       ├── DigitalMarketingHero.tsx
+│       │       ├── FaqSection.tsx
+│       │       ├── FinalCta.tsx
+│       │       ├── FreelanceProgram.tsx
+│       │       ├── HowItWorks.tsx
+│       │       ├── MarketGapAndSolution.tsx
+│       │       ├── OurPromise.tsx
+│       │       ├── PlacementProgram.tsx
+│       │       ├── PlansPricing.tsx
+│       │       ├── ProofCohortResults.tsx
+│       │       ├── RealInternships.tsx
+│       │       ├── ToolsYouMaster.tsx
+│       │       ├── WhatYouLearn.tsx
+│       │       ├── WhoThisIsFor.tsx
+│       │       └── index.ts
+│       └── course-taxation-compliance
+│           ├── CourseTaxationCompliancePage.tsx
+│           ├── data
+│           │   ├── faqData.ts
+│           │   └── reviewsData.ts
+│           └── sections
+│               ├── CareerOutcomes.tsx
+│               ├── Certifications.tsx
+│               ├── CourseHighlights.tsx
+│               ├── CourseIncludes.tsx
+│               ├── FaqSection.tsx
+│               ├── FinalCta.tsx
+│               ├── HeroSection.tsx
+│               ├── HowItWorks.tsx
+│               ├── MarketGapAndSolution.tsx
+│               ├── OurPromise.tsx
+│               ├── Testimonials.tsx
+│               ├── ToolsYouMaster.tsx
+│               ├── WhatYouLearn.tsx
+│               └── WhoThisIsFor.tsx
+├── routes
+│   ├── AppRoutes.tsx
+│   └── paths.ts
+├── services
+│   ├── baseApi.ts
+│   ├── checkoutApi.ts
+│   ├── mockes
+│   └── mocks
+│       └── checkoutMocks.ts
+├── types
+│   ├── common.ts
+│   ├── course.ts
+│   ├── faq.ts
+│   └── review.ts
+├── utils
+│   └── formatPrice.ts
+└── ...
+
+---
+
+## 2) File-by-file documentation
+
+### Root app entry and global shell
+
+- package.json — Project manifest for the Vite frontend; defines React, Redux, RTK Query, router, Tailwind, and build scripts. It is the source of the app’s dependency graph and standard dev workflow.
+- main.tsx — Bootstrap file that mounts the app into the root DOM node and imports the global stylesheet.
+- App.tsx — Top-level app wrapper that provides Redux store and BrowserRouter context, then renders the route tree.
+- index.css — Global styling entry; contains the shared CSS classes used across the platform, including button styles, layout utilities, and common design tokens.
+- App.css — App-local stylesheet layer; mostly global visual overrides and page-level CSS hooks for the existing front end.
+- .DS_Store — macOS Finder metadata file; not used by the app runtime.
+
+### App state and typed hooks
+
+- store.ts — Redux store configuration with RTK Query reducer and two app slices: ui and callback. It exports typed RootState and AppDispatch for the rest of the app.
+- hooks.ts — Typed Redux wrappers for useDispatch and useSelector, used to maintain TypeScript-safe interaction with the store.
+
+### Routing and layout
+
+- paths.ts — Centralized route constants for home, about, contact, checkout, course pages, and all-courses.
+- AppRoutes.tsx —Route tree for the app; it wraps all normal page routes inside the main layout and exposes checkout as a standalone route.
+- MainLayout.tsx — Shared page shell containing Header, Footer, WhatsAppButton, and the global callback modal.
+- Header.tsx — Responsive navigation header with desktop/mobile menu logic, app branding, CTA buttons, and callback modal dispatch.
+- Footer.tsx — Footer shell for navigation; likely renders grouped links and legal/marketing footer columns.
+- WhatsAppButton.tsx — Floating WhatsApp CTA used as a global conversion trigger.
+- RequestCallbackModal.tsx — Modal wrapper that binds the generic modal primitive to the Redux-driven callback state.
+- RequestCallback.tsx — Reusable callback form with validation, success state, slot selection, and async submit handling.
+- callbackSlice.ts — Redux slice controlling whether the callback modal is open or closed.
+- uiSlice.ts — Placeholder global UI slice for future shared UI state, with mobile-menu toggles defined but not currently used by the app.
+
+### Shared types and constants
+
+- common.ts — Shared cross-cutting interfaces for navigation and footer links.
+- course.ts — Canonical course/product type definitions including plan structures, pricing metadata, promo thumbnails, and course metadata.
+- faq.ts — FAQ item and grouping types used by product-detail FAQ sections.
+- review.ts — Minimal review model for testimonial content.
+- navigation.ts — Header navigation arrays for desktop and mobile menus.
+- api.ts — API base constants used by the app’s service layer.
+- footerLinks.ts — Footer link definitions for site navigation.
+- site.ts — Site metadata and shared values such as brand config.
+
+### Course catalog and data
+
+- courses.ts — Main course catalogue that contains the EdTech product data for taxation, digital marketing, and other offerings, including pricing, plans, ratings, summaries, and promo thumbnails.
+- formatPrice.ts — Small utility to format currencies/price strings consistently for display in UI.
+
+### Reusable UI building blocks
+
+- Button.tsx — Generic button/link component that renders either a button or anchor element using consistent CSS classes.
+- Modal.tsx — Generic accessible modal primitive with backdrop handling, focus trap, escape-to-close, and body scroll lock.
+- OtpInput.tsx — OTP entry component used in checkout verification flows.
+- Badge.tsx — Small labeled badge component for status/feature tags.
+- Banner.tsx — Shared banner component for promotional or informational content.
+- CourseCard.tsx — Reusable course-card component used in course list pages and catalog blocks.
+- FooterBanner.tsx — Footer promo banner block for marketing or CTA content.
+- Logo.tsx — Brand logo component for header/footer branding.
+- Tag.tsx — Small tag/chip element for course metadata or category labels.
+- SidebarEnrollCard.tsx — Product sidebar card used on detailed course pages; shows pricing, plan selection, and enrollment CTAs.
+- index.ts — Section barrel export for product-detail reusable sections.
+- HeroSection.tsx — Product hero section used in marketing/detail pages.
+- CourseHighlights.tsx — Generic course highlights panel for product pages.
+- ToolsYouMaster.tsx — “Tools you master” learning section for product educational pages.
+
+### Pages
+
+#### About
+- AboutUsPage.tsx — Full About Us landing page composed of multiple marketing sections: hero, mission, approach, commitment, and final CTA.
+
+#### Contact
+- ContactUsPage.tsx — Contact page for business inquiries and communication channels.
+
+#### Home
+- index.tsx — Home page orchestrator that composes the main homepage sections.
+- renderRich.tsx — Parser for rich-text formatting markers such as highlighted “[[…]]” and “{{…}}” strings used in homepage hero/headings.
+- HomeHero.tsx — Hero section with promo copy, course CTA, and headline emphasis.
+- HomeTrustStrip.tsx — Trust/brand strip section.
+- HomeCatalog.tsx — Course catalog section showing featured programs.
+- HomeOutcomes.tsx — Outcomes-focused marketing content.
+- HomeStats.tsx — Statistics block for numbers and performance claims.
+- HomeTestimonials.tsx — Testimonial display section.
+- HomeProcess.tsx — Learning process or flow explanation section.
+- HomeEnroll.tsx — Enrollment CTA section to convert visitors into leads or enrollments.
+- HomeLeadForm.tsx — Lead-capture form block for homepage conversion.
+- data — Placeholder data directory for home-page content; no concrete files are present in the current workspace state.
+
+#### All courses
+- index.tsx — Full “All Courses” experience combining search, filters, active-filter chips, and course results.
+- types.ts — Type definitions for sorting, pricing, facet options, and filter-state logic.
+- constants.ts — Filter defaults and debouncing values used by the course search flow.
+- useCourseFilters.ts — Custom hook that builds the catalogue, computes derived filters, debounces query changes, and exposes filter actions.
+- courseFilters.ts — Filtering, sorting, facet calculation, and active-chip logic for the course listing.
+- PageHeader.tsx — Heading and total-count area for the courses index.
+- CourseSearch.tsx — Search input for catalog filtering.
+- CourseFilters.tsx — Sidebar/mobile filter controls for categories, modes, and pricing.
+- ActiveFilters.tsx — Chips that summarize currently applied filters.
+- CourseListing.tsx — Results grid responsible for rendering matching course cards.
+
+#### Checkout
+- index.tsx — Main checkout page orchestration; resolves the selected course and plan from URL params, handles validation, OTP, coupon/GST logic, and order submission.
+- constants.ts — Checkout constants, defaults, validation regexes, event names, and checkout-specific configuration.
+- types.ts — All Checkout API and local-state types, including OTP, GST, coupon, and order payload models.
+- utils.ts — Helper functions for resolving products from URL_params, building order payloads, calculating totals, and validating GST/state.
+- CheckoutHeader.tsx — Top header block for the purchase flow.
+- VerifySection.tsx — Phone/email verification section for OTP-based identity checks.
+- CouponSection.tsx — Coupon discount UI and validation handling.
+- GstSection.tsx — GST input accordion for company purchase details.
+- OrderDetailsSection.tsx — Order summary and product details shown during checkout.
+- ReceiptSection.tsx — Receipt display for the finalized order.
+- PayBar.tsx — Payment CTA bar that submits the order.
+- OtpModal.tsx — OTP verification modal used for phone/email verification.
+- PayErrorModal.tsx — Payment failure modal for unsuccessful checkout states.
+
+#### Course detail: digital marketing
+- index.tsx — Product detail page entry for the digital marketing course, assembling the full landing-page narrative.
+- faqData.ts — FAQ content for the digital marketing course.
+- reviewsData.ts — Review/testimonial data for the digital marketing course page.
+- DigitalMarketingHero.tsx — Hero section for the digital marketing course.
+- CourseHighlights.tsx — Feature highlight block.
+- CourseIncludes.tsx — Includes/benefits summary.
+- WhatYouLearn.tsx — Learning outcomes section.
+- WhoThisIsFor.tsx — Audience targeting block.
+- HowItWorks.tsx — Learning journey or onboarding section.
+- OurPromise.tsx — Course promise or guarantee section.
+- MarketGapAndSolution.tsx — Problem-solution positioning section.
+- ProofCohortResults.tsx — Social proof / cohort outcomes section.
+- RealInternships.tsx — Internship placement content.
+- PlacementProgram.tsx — Placement support section.
+- PlansPricing.tsx — Pricing table or plan comparison.
+- Certifications.tsx — Certification/outcomes section.
+- FaqSection.tsx — FAQ accordion for the digital marketing program.
+- FinalCta.tsx — Final conversion CTA.
+- FreelanceProgram.tsx — Freelancing content block.
+- ToolsYouMaster.tsx — Skill/tooling section.
+- CareerOutcomes.tsx — Career progression section.
+- index.ts — Barrel export file for digital marketing page sections.
+
+#### Course detail: taxation and compliance
+- CourseTaxationCompliancePage.tsx — Product-detail page entry for the taxation/compliance course.
+- faqData.ts — Course-specific FAQ copy.
+- reviewsData.ts — Review content for the taxation/compliance page.
+- HeroSection.tsx — Primary hero section for the course.
+- CourseHighlights.tsx — Highlights and differentiators.
+- CourseIncludes.tsx — Included modules/value adds.
+- WhatYouLearn.tsx — Learning outcome list.
+- WhoThisIsFor.tsx — Audience segmentation.
+- HowItWorks.tsx — Step-by-step process explanation.
+- OurPromise.tsx — Guarantee/assurance section.
+- MarketGapAndSolution.tsx — Industry problem + solution framing.
+- CareerOutcomes.tsx — Career impact section.
+- Certifications.tsx — Certification or credential section.
+- Testimonials.tsx — Student testimonials section.
+- FinalCta.tsx — Final conversion CTA.
+- FaqSection.tsx — Accordion FAQ.
+- ToolsYouMaster.tsx — Tools and software taught.
+- Testimonials.tsx — Social proof section.
+
+### API layer and backend integration
+
+- baseApi.ts — Shared RTK Query base API instance using VITE_API_BASE_URL or /api. It configures the base URL and leaves the endpoint definitions empty until a real API is wired in.
+- checkoutApi.ts — Concrete checkout API endpoints for phone/email OTP, coupon validation, GST validation, and order creation. These are typed and exposed as generated RTK Query hooks.
+- mockes — Present as a file-like artifact in the current workspace; not an active directory and not part of the runtime shape.
+- checkoutMocks.ts — Mock data and response shims used to simulate OTP/coupon/GST/order flows during front-end development.
+
+### Assets
+
+- hero.png — Visual asset likely used in landing-page or hero layouts.
+- react.svg — Default Vite/React branding asset.
+- vite.svg — Default Vite logo asset.
+
+---
+
+## Overall codebase assessment
+
+This frontend is structured as a route-driven education platform with:
+
+- layered page composition for home, catalog, checkout, and course detail pages
+- reusable shared UI primitives
+- a centralized catalog model in courses.ts
+- Redux slices for modal state and future UI state
+- RTK Query scaffolding for checkout and API integration, but no live backend implementation is connected yet
+- no Firebase auth or DB integration detected in the current app source
+

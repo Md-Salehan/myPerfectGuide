@@ -1,6 +1,5 @@
 //src/components/layout/Footer.tsx
 
-import { Logo } from "../common/Logo";
 
 import { FOOTER_COLUMNS, ONLINE_TOOLS, POPULAR_HANDBOOKS } from "../../constants/footerLinks";
 import {
@@ -19,7 +18,11 @@ export function Footer() {
           {/* Brand block */}
           <div>
             <a href="#" className="flex items-center gap-2">
-              <Logo variant="footer" />
+              <img
+                src={import.meta.env.BASE_URL + "images/brand-logo-dark.png"}
+                alt="My Perfect Guide"
+                className="h-8 w-auto"
+              />
             </a>
             <p className="italic text-slate-400 text-sm mt-3">{TAGLINE}</p>
 

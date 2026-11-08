@@ -5,14 +5,17 @@
 
 export const ROUTES = {
   /** About Us page — migrated from about_us.html. */
+  HOME: "/",
   ABOUT: "/about",
   CONTACT: "/contact",
   CHECKOUT: "/order",
+  ALL_COURSES: "/courses",
   COURSE_1: "/courses/complete-taxation-compliance",
   COURSE_2: "/courses/digital-marketing",
   COURSE_3: "/courses/itr-filing",
   COURSE_4: "/courses/accounting-bookkeeping",
   COURSE_5: "/courses/tax-planning",
+  AUTH_EMAIL_LINK: "/auth/email-link",
 } as const;
 
 /**

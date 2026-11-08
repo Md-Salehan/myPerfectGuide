@@ -4,6 +4,7 @@ import { configureStore } from "@reduxjs/toolkit";
 
 import { baseApi } from "../services/baseApi";
 import uiReducer from "../features/ui/uiSlice";
+import authReducer from "../features/auth/authSlice";
 import callbackReducer from "../features/callback/callbackSlice";
 
 export const store = configureStore({
@@ -13,6 +14,7 @@ export const store = configureStore({
 
     // App slices.
     ui: uiReducer,
+    auth: authReducer,
     callback: callbackReducer,
   },
 

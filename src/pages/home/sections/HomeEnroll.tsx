@@ -1,0 +1,110 @@
+// ============================================================
+// src/pages/home/sections/HomeEnroll.tsx
+// Enroll section — two-column card with copy + checklist +
+// price + offer on the left, lead form on the right.
+//
+// Reads course.homepage.enrollPoints / .enrollText / .journey /
+// .discountLabel when overridden, falling back to
+// HOME_CONTENT.enroll for the site defaults.
+//
+// Price block reads from course.plans.year (falls back to
+// .life if year is absent). Renders:
+//   - discountPrice (plan.price) as the bold number
+//   - the struck-through number (plan.original) if it exists
+//   - nothing if neither plan has a price
+// ============================================================
+
+import type { ReactNode } from "react";
+import { useAppDispatch } from "../../../app/hooks";
+import { openCallback } from "../../../features/callback/callbackSlice";
+
+
+
+
+
+export function HomeEnroll() {
+    const dispatch = useAppDispatch();
+
+
+    return (
+
+
+        <section className="relative overflow-hidden bg-gradient-to-br from-blue-600 to-indigo-800 px-5 sm:px-14">
+            <div className="shell grid lg:grid-cols-2 gap-10 items-bottom pt-14 lg:pt-20 cta-grid">
+                {/* ============================================================
+                            LEFT: copy + bullets + CTAs
+                            ============================================================ */}
+                <div className="text-white pb-14 lg:pb-20">
+                    <h2 className="text-2xl sm:text-[36px] font-extrabold leading-tight tracking-tight">
+                        Start Your Taxation Career Today — Earn ₹1 Lakh+/Month From Home
+                    </h2>
+
+                    <p className="mt-5 text-blue-100 font-medium">Talk to our Course Advisor to:</p>
+
+                    <ul className="mt-4 space-y-2.5">
+                        <AdvisorBullet>See if this course matches your current knowledge and goals</AdvisorBullet>
+                        <AdvisorBullet>Understand how you can get clients from all over India</AdvisorBullet>
+                        <AdvisorBullet>Learn about the 90% discount for the first 50 students</AdvisorBullet>
+                        <AdvisorBullet>Explore EMI options and batch schedules</AdvisorBullet>
+                    </ul>
+
+                    <div className="flex flex-wrap gap-3 mt-8">
+                        {/* Request A Callback — opens the callback modal */}
+                        <button
+                            type="button"
+                            onClick={() => dispatch(openCallback())}
+                            className="btn bg-white text-indigo-700 px-6 py-3.5 text-sm hover:bg-blue-50"
+                        >
+                            Request A Callback
+                            <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                                <path d="M2 3.5A1.5 1.5 0 013.5 2h1.05a1.5 1.5 0 011.45 1.12l.6 2.4a1.5 1.5 0 01-.4 1.45l-1 1a11.5 11.5 0 005.83 5.83l1-1a1.5 1.5 0 011.45-.4l2.4.6A1.5 1.5 0 0117 14.45v1.05a1.5 1.5 0 01-1.5 1.5H14C7.37 17 2 11.63 2 5V3.5z" />
+                            </svg>
+                        </button>
+
+                        {/* Enroll Now — plain link, unchanged from the source */}
+                        <a
+                            href="#"
+                            className="btn border border-white/50 text-white px-6 py-3.5 text-sm hover:bg-white/10"
+                        >
+                            Enroll Now
+                            <svg
+                                className="w-4 h-4"
+                                fill="none"
+                                stroke="currentColor"
+                                strokeWidth={2}
+                                viewBox="0 0 24 24"
+                            >
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M5 12h14M13 6l6 6-6 6" />
+                            </svg>
+                        </a>
+                    </div>
+                </div>
+
+                {/* ============================================================
+                            RIGHT: person image (lg+ only)
+                            ============================================================ */}
+                <div className="relative hidden lg:flex justify-center">
+                    <img
+                        src={import.meta.env.BASE_URL + "images/course-detail-asset/person.png"}
+                        alt="Student talking to course advisor"
+                        className="relative z-10 w-[430px] max-w-full rounded-2xl"
+                    />
+                </div>
+            </div>
+        </section>
+
+    );
+}
+
+/* ------------------------------------------------------------
+   Internal: single advisor bullet
+   ------------------------------------------------------------ */
+
+function AdvisorBullet({ children }: { children: ReactNode }) {
+    return (
+        <li className="flex items-start gap-2.5 text-blue-50 text-[15px]">
+            <span className="mt-1.5 w-1.5 h-1.5 rounded-full bg-white shrink-0" />
+            {children}
+        </li>
+    );
+}

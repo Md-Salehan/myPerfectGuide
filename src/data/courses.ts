@@ -1,118 +1,50 @@
 // ============================================================
 // src/data/courses.ts
 // Single source of truth for every course / product.
-//
-// Keyed by `courseId`. The checkout page receives ONLY the
-// courseId + selected plan (e.g. /order?courseId=...&plan=year),
-// looks the course up here, resolves the plan, and renders from
-// the returned object. The product-detail sidebar reads from the
-// same object, so a price or feature is edited in exactly one
-// place.
-//
-// Every value below was carried over from the existing code:
-//   - checkout fields  <- MOCK_PRODUCTS (checkoutMocks.ts)
-//   - sidebar fields   <- the <SidebarEnrollCard /> props in
-//                         CourseTaxationCompliancePage.tsx and
-//                         CourseDigitalMarketingPage (index.tsx)
-// Nothing was invented. Fields that the source did not have for
-// a course are simply absent (all of them are optional).
-//
-// Consumed by:
-//   - pages/checkout/utils.ts            (resolveCourseFromParams)
-//   - pages/checkout/types.ts            (Product / ProductPlan aliases)
-//   - pages/checkout/CheckoutPage.tsx
-//   - components/product/SidebarEnrollCard.tsx
-//   - pages/product-details/**           (courseId + plan source)
+
 // ============================================================
 
-/* ------------------------------------------------------------
-   Types
-   ------------------------------------------------------------ */
+import type {
+  Course,
+  CoursePlan,
+  PlanType,
+  PromoThumbnail,
+} from "../types/course";
 
-/**
- * The two plan slots a course can offer.
- * NOTE: the ids are kept as "year" | "life" because the checkout
- * toggle, DEFAULT_PLAN and OrderPayload all depend on them. For
- * Digital Marketing, "year" = Standard and "life" = Premium
- * (same mapping the existing mock used).
- */
-export type PlanType = "year" | "life";
-
-/** Image or video source for the sidebar promo banner. */
-export type PromoThumbnail =
-  | { type: "image"; src: string; alt?: string }
-  | { type: "video"; src: string; poster?: string; alt?: string };
-
-export interface CoursePlan {
-  /** Toggle button label, e.g. "1 Year — ₹1,599". */
-  label: string;
-  /** Final price in rupees (integer). */
-  price: number;
-  /** Struck-through original price in rupees (integer). */
-  original: number;
-  /** Discount pill text used by checkout, e.g. "Flat 90% Off". */
-  off: string;
-  /** Discount percentage used by the sidebar pill, e.g. 90. */
-  offPercent: number;
-
-  /* ---- Sidebar-only (product detail page) ---- */
-
-  /** Checklist rows shown in the sidebar for this plan. */
-  features?: readonly string[];
-  /** Small line under the sidebar price, e.g. "1 Year Validity". */
-  priceNote?: string;
-  /** Note shown under the sidebar plan toggle (e.g. refund promise). */
-  note?: string;
-  /** Overrides the sidebar CTA label for this plan. */
-  ctaLabel?: string;
-}
-
-export interface Course {
-  /** Unique id. Same string as the key in `courses`. */
-  courseId: string;
-  /** Display title shown in Order Details. */
-  title: string;
-  /** Root-relative image URL for the checkout thumbnail. */
-  image: string;
-  /** Optional category. */
-  type?: string;
-  /** Rating out of 5, e.g. 4.9. */
-  rating?: number;
-  /** Human-readable rating count, e.g. "2,800+ ratings". */
-  ratingCount?: string;
-  /** Pipe-joined under the title in checkout. */
-  shortFeatures?: string[];
-  /** Shown under "View more details" in checkout. */
-  moreFeatures?: string[];
-  /** Plans offered. At least one is required for checkout. */
-  plans: Partial<Record<PlanType, CoursePlan>>;
-
-  /* ---- Sidebar-only (product detail page) ---- */
-
-  /** Promo banner media in the sidebar card. */
-  promoThumbnail?: PromoThumbnail;
-  /** Small note rendered under the sidebar feature list. */
-  footNote?: string;
-}
+// Re-export for back-compat. Consumers that import these from
+// courses.ts continue to work; new consumers should import
+// from types/course.ts directly.
+export type { Course, CoursePlan, PlanType, PromoThumbnail };
 
 /* ------------------------------------------------------------
    Course catalogue
    ------------------------------------------------------------ */
 
 const courses: Record<string, Course> = {
-  /* --- Taxation & Compliance course ------------------------------ */
+  /* ============================================================
+     Taxation & Compliance
+     ============================================================ */
   "taxation-compliance-2026": {
     courseId: "taxation-compliance-2026",
+    url: "courses/complete-taxation-compliance",
     title: "Complete Taxation & Compliance Course 2026",
-    image: "/img/taxation-promo.jpg",
-    type: "finance",
+    shortTitle: "Taxation & Compliance",
+    category: "Finance",
     rating: 4.9,
     ratingCount: "2,800+ ratings",
+    summary:
+      "From Fundamentals to Client Acquisition: GST, ITR, Accounting & Digital Marketing.",
+    duration: "3 Months",
+    modules: 3,
+    lectures: 120,
+    mode: "Live + Recorded",
+    highlights: ["120+ lectures", "Live + Recorded", "Hindi + English"],
     shortFeatures: [
-      "Complete GST & ITR Training",
+      "All Taxation & Compliance Training",
       "Portfolio Website Building",
       "Digital Marketing & Client Acquisition",
       "10+ Real-World Projects",
+      "Certificate of Completion"
     ],
     moreFeatures: [
       "Live + Recorded Sessions",
@@ -154,21 +86,34 @@ const courses: Record<string, Course> = {
       },
     },
     promoThumbnail: {
-      type: "image",
-      src: "/img/taxation-promo.jpg",
-      alt: "Taxation & Compliance Course",
+      imageUrl: `${import.meta.env.BASE_URL}images/course-detail-asset/taxation/thumbnail.png`,
+      videoUrl: `${import.meta.env.BASE_URL}video/taxation-compliance-promo.mp4`,
     },
+    batchStartDate: "2026-11-15",
+    enrollmentOpen: true,
   },
 
-  /* --- Digital Marketing course ---------------------------------- */
-  // "year" slot = Standard, "life" slot = Premium.
+  /* ============================================================
+     Digital Marketing
+     Homepage content mapped from `marketing` in the source.
+     Note: "year" slot = Standard, "life" slot = Premium.
+     ============================================================ */
   "digital-marketing-2026": {
     courseId: "digital-marketing-2026",
+    url: "courses/digital-marketing-2026",
     title: "Digital Marketing & Client Acquisition System 2026",
-    image: "/img/ads-promo.jpg",
-    type: "marketing",
+    shortTitle: "Digital & Performance Marketing",
+    summary:
+      "Build your portfolio website and learn ads, LinkedIn and WhatsApp outreach.",
+    category: "Marketing",
     rating: 4.8,
     ratingCount: "1,200+ ratings",
+    duration: "1 Month",
+    modules: 6,
+    lectures: 45,
+    mode: "Live + Recorded",
+    highlights: ["15-module curriculum", "Live + Recorded", "Certificate"],
+
     shortFeatures: [
       "Facebook & Instagram Ads",
       "Google Ads & SEO",
@@ -213,23 +158,29 @@ const courses: Record<string, Course> = {
       },
     },
     promoThumbnail: {
-      type: "video",
-      src: "/video/ads-promo.mp4",
-      poster: "/img/ads-promo.jpg",
+      imageUrl: "/img/marketing-promo.jpg",
+      videoUrl: "/video/marketing-promo.mp4",
     },
     footNote: "Premium seats are limited per batch.",
+    batchStartDate: "2026-09-15",
+    enrollmentOpen: false,
   },
 
-  /* --- Web Development course ------------------------------------ */
-  // Checkout data only: the source had no sidebar data (features,
-  // promo, notes) for this course, so none is added here.
   "web-development-2026": {
     courseId: "web-development-2026",
+    url: "courses/web-development-2026",
     title: "Full Stack Web Development Bootcamp 2026",
-    image: "/img/webdev-promo.jpg",
-    type: "technology",
+    shortTitle: "Full-Stack Web Development",
+    summary:
+      "Build and deploy real projects with React, Node.js and databases.",
+    category: "Technology",
     rating: 4.9,
     ratingCount: "3,500+ ratings",
+    duration: "4 Months",
+    modules: 12,
+    lectures: 300,
+    mode: "Live + Recorded",
+    highlights: ["12 modules", "Live + Recorded", "Portfolio projects"],
     shortFeatures: [
       "HTML, CSS, JavaScript",
       "React + TypeScript",
@@ -257,6 +208,12 @@ const courses: Record<string, Course> = {
         offPercent: 77,
       },
     },
+    promoThumbnail: {
+      imageUrl: "/img/web-dev-promo.jpg",
+      videoUrl: "/video/web-dev-promo.mp4",
+    },
+    batchStartDate: "2026-8-01",
+    enrollmentOpen: false,
   },
 };
 
@@ -278,6 +235,11 @@ export function getCourse(
   return Object.prototype.hasOwnProperty.call(courses, courseId)
     ? courses[courseId]
     : undefined;
+}
+
+/** All courses, in declaration order. Used by the home page catalog. */
+export function getAllCourses(): Course[] {
+  return Object.values(courses);
 }
 
 export default courses;

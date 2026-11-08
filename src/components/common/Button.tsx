@@ -11,7 +11,24 @@
 
 import type { AnchorHTMLAttributes, ButtonHTMLAttributes, ReactNode } from "react";
 
-type ButtonVariant = "primary" | "dark" | "outline";
+type ButtonVariant =
+  | "primary"
+  | "secondary"
+  | "success"
+  | "warning"
+  | "danger"
+  | "info"
+  | "dark"
+  | "light"
+  | "outline"
+  | "outline-primary"
+  | "outline-secondary"
+  | "outline-success"
+  | "outline-warning"
+  | "outline-danger"
+  | "outline-info"
+  | "dark-outline"
+  | "outline-light";
 
 /** Shared props for both the <button> and <a> render paths. */
 interface BaseProps {
@@ -42,16 +59,12 @@ type ButtonProps = ButtonAsButtonProps | ButtonAsAnchorProps;
  * Maps a variant to the corresponding global class from index.css.
  * The base `.btn` class is always applied first.
  */
-const VARIANT_CLASS: Record<ButtonVariant, string> = {
-  primary: "btn btn-primary",
-  dark: "btn btn-dark",
-  outline: "btn btn-outline",
-};
+
 
 export function Button(props: ButtonProps) {
   const { variant = "primary", className = "", children, ...rest } = props;
 
-  const classes = [VARIANT_CLASS[variant], className].filter(Boolean).join(" ");
+  const classes = ["btn btn-" + variant, className].filter(Boolean).join(" ");
 
   // Render an <a> when href is supplied — matches the original
   // usage of the same visual styles on anchor elements.

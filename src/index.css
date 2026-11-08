@@ -2,7 +2,9 @@
    src/index.css
    Tailwind v4 entry + design tokens + global styles
    Ported 1:1 from the original <style> blocks and inline
-   tailwind.config in index.html / about_us.html
+   tailwind.config in index.html / about_us.html.
+   Adds .zig for the checkout receipt top edge, and the
+   home-page-specific colour tokens ported from index (5).html.
    ============================================================ */
 
 @import "tailwindcss";
@@ -36,6 +38,26 @@
   --color-navy-800: #141a38;
   --color-navy-900: #0f1428;
 
+  /* ------------------------------------------------------------
+     Home-page tokens — ported from index (5).html
+     Used by the new Home page sections.
+     ------------------------------------------------------------ */
+
+  /* teal accent (used for want-to-learn/outcome highlights) */
+  --color-teal: #5cafaf;
+  --color-teal-deep: #287f80;
+
+  /* soft surfaces (cards, stats banner, step backgrounds) */
+  --color-aqua: #ddf0ef;
+  --color-aqua-soft: #eff8f7;
+  --color-yellow-soft: #fff0d1;
+  --color-yellow-warm: #f4c95d;
+
+  --color-primary: #4f46e5;
+  --color-primary-dark: #4338ca;
+
+  /* ------------------------------------------------------------ */
+
   /* Shadows */
   --shadow-card: 0 1px 2px rgba(16, 24, 40, 0.06),
     0 1px 3px rgba(16, 24, 40, 0.08);
@@ -52,6 +74,7 @@
    ------------------------------------------------------------ */
 html {
   scroll-behavior: smooth;
+  scroll-padding-top: 80px;
 }
 
 body {
@@ -61,7 +84,7 @@ body {
   overflow-x: hidden;
 }
 
-*{
+* {
   box-sizing: border-box;
 }
 
@@ -95,12 +118,14 @@ body {
   border-radius: 0.75rem;
   transition: all 0.15s ease;
   white-space: nowrap;
+  border-width: 1px;
 }
+
 
 .btn-primary {
   background-color: #4f46e5;
   color: #fff;
-  box-shadow: 0 4px 14px -2px rgba(79, 70, 229, 0.45);
+  box-shadow: 0 4px 14px -2px rgba(79, 70, 229, 0.35);
 }
 
 .btn-primary:hover {
@@ -108,24 +133,237 @@ body {
   transform: translateY(-1px);
 }
 
+/* =========================
+   Secondary — Brand Pink
+========================= */
+.btn-secondary {
+  background-color: #e31b54;
+  color: #fff;
+  box-shadow: 0 4px 14px -2px rgba(227, 27, 84, 0.25);
+}
+
+.btn-secondary:hover {
+  background-color: #c91446;
+  transform: translateY(-1px);
+}
+
+/* =========================
+   Success — Green
+========================= */
+.btn-success {
+  background-color: #15803d;
+  color: #fff;
+  box-shadow: 0 4px 14px -2px rgba(21, 128, 61, 0.25);
+}
+
+.btn-success:hover {
+  background-color: #166534;
+  transform: translateY(-1px);
+}
+
+/* =========================
+   Warning — Amber
+========================= */
+.btn-warning {
+  background-color: #f59e0b;
+  color: #0a0f1e;
+  box-shadow: 0 4px 14px -2px rgba(245, 158, 11, 0.25);
+}
+
+.btn-warning:hover {
+  background-color: #d97706;
+  color: #fff;
+  transform: translateY(-1px);
+}
+
+/* =========================
+   Danger — Red
+========================= */
+.btn-danger {
+  background-color: #dc2626;
+  color: #fff;
+  box-shadow: 0 4px 14px -2px rgba(220, 38, 38, 0.25);
+}
+
+.btn-danger:hover {
+  background-color: #b91c1c;
+  transform: translateY(-1px);
+}
+
+/* =========================
+   Info — Sky Blue
+========================= */
+.btn-info {
+  background-color: #0284c7;
+  color: #fff;
+  box-shadow: 0 4px 14px -2px rgba(2, 132, 199, 0.25);
+}
+
+.btn-info:hover {
+  background-color: #0369a1;
+  transform: translateY(-1px);
+}
+
+/* =========================
+   Dark — Navy
+========================= */
 .btn-dark {
-  background-color: #0b0f19;
+  background-color: #0a0f1e;
   color: #fff;
 }
 
 .btn-dark:hover {
-  background-color: #1a1f2e;
+  background-color: #1e293b;
+  transform: translateY(-1px);
 }
 
+/* =========================
+   Light
+========================= */
+.btn-light {
+  background-color: #f1f5f9;
+  color: #0a0f1e;
+  border-color: #e2e8f0;
+}
+
+.btn-light:hover {
+  background-color: #e2e8f0;
+  transform: translateY(-1px);
+}
+
+/* =========================
+   Outline — Default
+========================= */
 .btn-outline {
   background-color: #fff;
-  color: #1e1b4b;
-  border: 1px solid #e2e8f0;
+  color: #241e5c;
+  border-color: #e2e8f0;
 }
 
 .btn-outline:hover {
-  border-color: #cbd5e1;
   background-color: #f8fafc;
+  border-color: #cbd5e1;
+}
+
+/* =========================
+   Outline — Primary
+========================= */
+.btn-outline-primary {
+  background-color: transparent;
+  color: #4f46e5;
+  border-color: #4f46e5;
+  ;
+}
+
+.btn-outline-primary:hover {
+  background-color: #4f46e5;
+  color: #fff;
+}
+
+/* =========================
+   Outline — Secondary
+========================= */
+.btn-outline-secondary {
+  background-color: transparent;
+  color: #e31b54;
+  border-color: #e31b54;
+}
+
+.btn-outline-secondary:hover {
+  background-color: #e31b54;
+  color: #fff;
+}
+
+/* =========================
+   Outline — Success
+========================= */
+.btn-outline-success {
+  background-color: transparent;
+  color: #15803d;
+  border-color: #15803d;
+}
+
+.btn-outline-success:hover {
+  background-color: #15803d;
+  color: #fff;
+}
+
+/* =========================
+   Outline — Warning
+========================= */
+.btn-outline-warning {
+  background-color: transparent;
+  color: #92400e;
+  border-color: #d97706;
+}
+
+.btn-outline-warning:hover {
+  background-color: #f59e0b;
+  color: #0a0f1e;
+}
+
+/* =========================
+   Outline — Danger
+========================= */
+.btn-outline-danger {
+  background-color: transparent;
+  color: #dc2626;
+  border-color: #dc2626;
+}
+
+.btn-outline-danger:hover {
+  background-color: #dc2626;
+  color: #fff;
+}
+
+/* =========================
+   Outline — Info
+========================= */
+.btn-outline-info {
+  background-color: transparent;
+  color: #0369a1;
+  border-color: #0284c7;
+}
+
+.btn-outline-info:hover {
+  background-color: #0284c7;
+  color: #fff;
+}
+
+/* =========================
+   Outline — Dark
+========================= */
+.btn-dark-outline {
+  background-color: transparent;
+  color: #0a0f1e;
+  border-color: #0a0f1e;
+}
+
+.btn-dark-outline:hover {
+  background-color: #0a0f1e;
+  color: #fff;
+}
+
+/* =========================
+   Outline — Light
+========================= */
+.btn-outline-light {
+  background-color: transparent;
+  color: #475569;
+  border-color: #cbd5e1;
+}
+
+.btn-outline-light:hover {
+  background-color: #f1f5f9;
+  color: #0a0f1e;
+}
+
+/* =========================
+   Focus Accessibility
+========================= */
+.btn:focus-visible {
+  outline: 3px solid #0ea5e9;
+  outline-offset: 3px;
 }
 
 /* Badges */
@@ -490,26 +728,44 @@ header {
   }
 }
 
-
-
-
-
-
-.about-hero-grid {
-  background-image:
-    linear-gradient(to right, rgba(255, 255, 255, 0.06) 1px, transparent 1px),
-    linear-gradient(to bottom, rgba(255, 255, 255, 0.06) 1px, transparent 1px);
-  background-size: 56px 56px;
-  mask-image: radial-gradient(ellipse at center, black 40%, transparent 80%);
-  -webkit-mask-image: radial-gradient(ellipse at center, black 40%, transparent 80%);
-}
-
-
+/* ------------------------------------------------------------
+   Checkout receipt — zigzag top edge
+   Ported 1:1 from the <style> block in checkout (2).html.
+   ------------------------------------------------------------ */
 .zig {
   position: absolute;
   left: 0;
   right: 0;
   top: -7px;
   height: 7px;
-  background: conic-gradient(from 135deg at top, #0000, #fff 1deg 89deg, #0000 90deg) 50% / 12px 100%;
+  background: conic-gradient(
+      from 135deg at top,
+      #0000,
+      #fff 1deg 89deg,
+      #0000 90deg
+    )
+    50% / 12px 100%;
+}
+
+/* ------------------------------------------------------------
+   About hero grid (added in an earlier step)
+   ------------------------------------------------------------ */
+.about-hero-grid {
+  background-image: linear-gradient(
+      to right,
+      rgba(255, 255, 255, 0.06) 1px,
+      transparent 1px
+    ),
+    linear-gradient(
+      to bottom,
+      rgba(255, 255, 255, 0.06) 1px,
+      transparent 1px
+    );
+  background-size: 56px 56px;
+  mask-image: radial-gradient(ellipse at center, black 40%, transparent 80%);
+  -webkit-mask-image: radial-gradient(
+    ellipse at center,
+    black 40%,
+    transparent 80%
+  );
 }

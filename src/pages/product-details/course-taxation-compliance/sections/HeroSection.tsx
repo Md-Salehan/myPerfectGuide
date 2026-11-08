@@ -13,8 +13,10 @@
 // wrapper in the source).
 // ============================================================
 
+import { Clock4 } from "lucide-react";
 import { Badge } from "../../../../components/common/Badge";
-import { SidebarEnrollCard } from "../../../../components/product/SidebarEnrollCardx";
+import { SidebarEnrollCard } from "../../../../components/product/SidebarEnrollCard";
+
 
 export function HeroSection() {
   return (
@@ -128,7 +130,43 @@ export function HeroSection() {
       {/* ---------- Mobile-only sidebar card ---------- */}
       <div className="lg:hidden mt-8">
         <div className="sidebar-card">
-          <SidebarEnrollCard />
+          <SidebarEnrollCard
+                courseId="taxation-compliance-2026"
+                promoThumbnail={{ type: "image", src: `${import.meta.env.BASE_URL}images/course-detail-asset/taxation/thumbnail.png`, alt: "Taxation & Compliance Course" }}
+                plans={[
+                  {
+                    key: "year",
+                    label: "1 Year — ₹1,599",
+                    price: 1599,
+                    original: 15990,
+                    off: 90,
+                    priceNote: { text: "1 Year Validity", icon: <Clock4 /> },
+                    features: [
+                      "Complete GST & ITR Training",
+                      "Portfolio Website Building",
+                      "Digital Marketing & Client Acquisition",
+                      "10+ Real-World Projects",
+                      "Live + Recorded Sessions",
+                      "1 Year Access",
+                    ],
+                  },
+                  {
+                    key: "life",
+                    label: "Lifetime — ₹2,999",
+                    price: 2999,
+                    original: 19990,
+                    off: 85,
+                    priceNote: { text: "Lifetime Access", icon: <Clock4 /> },
+                    features: [
+                      "Everything in 1 Year",
+                      "Lifetime access to recordings",
+                      "All future updates",
+                      "Priority doubt support",
+                      "Certificate of completion",
+                    ],
+                  },
+                ]}
+              />
         </div>
       </div>
     </section>

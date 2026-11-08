@@ -1,35 +1,19 @@
 // ============================================================
 // src/components/layout/Header.tsx
 // Sticky top navbar + slide-down mobile menu.
-//
-// Ported 1:1 from the <header> block in index.html and
-// about_us.html, including:
-//   - desktop nav variants (primary / highlight / plain)
-//   - chevron indicators on "Courses" and "Resources"
-//   - "NEW" badge on "AI Course"
-//   - mobile hamburger + slide-down panel
-//
-// Behaviour added on top of the source markup:
-//   - Escape closes the menu and returns focus to the toggle
-//   - Clicking outside the header closes the menu
-//   - Tapping any nav item inside the panel closes the menu
-//   - The hamburger icon swaps to an X when the menu is open
-//   - Focus returns to the toggle button whenever the menu
-//     is dismissed via Escape or click-outside
-//   - The "Request Callback" entry (desktop and mobile) opens
-//     the callback modal instead of navigating
 // ============================================================
 
 import { useEffect, useRef, useState } from "react";
 
 import { Badge } from "../common/Badge";
 import { Button } from "../common/Button";
-import { Logo } from "../common/Logo";
 
 import { useAppDispatch } from "../../app/hooks";
 import { openCallback } from "../../features/callback/callbackSlice";
 import { MOBILE_NAV_LINKS, NAV_LINKS } from "../../constants/navigation";
 import type { NavLink } from "../../types/common";
+import { ROUTES } from "../../routes/paths";
+import { Link } from "react-router-dom";
 
 /**
  * Nav entries with this exact label open the callback modal
@@ -102,8 +86,12 @@ export function Header() {
     >
       <div className="shell flex items-center justify-between h-[76px]">
         {/* ---------- Logo ---------- */}
-        <a href="#" className="flex items-center gap-2 shrink-0">
-          <Logo variant="header" />
+        <a href={import.meta.env.VITE_API_BASE_URL + ROUTES.HOME} className="flex items-center gap-2 shrink-0">
+          <img
+            src={import.meta.env.BASE_URL + "images/brand-logo-light.png"}
+            alt="My Perfect Guide"
+            className="h-8 w-auto"
+          />
         </a>
 
         {/* ---------- Desktop nav ---------- */}
@@ -113,11 +101,11 @@ export function Header() {
           ))}
 
           <Button
-            href="#"
+            href={import.meta.env.VITE_APP_BASE_URL + ROUTES.HOME}
             variant="primary"
             className="text-sm px-5 py-2.5 ml-1"
           >
-            Log In
+            Dashboard
           </Button>
         </nav>
 
@@ -183,7 +171,7 @@ export function Header() {
           ))}
 
           <Button
-            href="#"
+            href={import.meta.env.VITE_APP_BASE_URL + ROUTES.HOME}
             variant="primary"
             className="text-sm px-5 py-3 mt-2 justify-center"
           >
@@ -255,7 +243,7 @@ function DesktopNavItem({
       <button
         type="button"
         onClick={() => dispatch(openCallback())}
-        className={`${baseClass} ${variantClass}`}
+        className={`${baseClass} ${variantClass} cursor-pointer`}
       >
         {content}
       </button>
@@ -263,9 +251,9 @@ function DesktopNavItem({
   }
 
   return (
-    <a href={href} className={`${baseClass} ${variantClass}`}>
+    <Link to={href} className={`${baseClass} ${variantClass}`}>
       {content}
-    </a>
+    </Link>
   );
 }
 

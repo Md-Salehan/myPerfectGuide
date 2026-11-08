@@ -12,7 +12,7 @@
 // `short`, `rating`, `ratingCount`, `original`, and `off`.
 // ============================================================
 
-import { useState } from "react";
+// import { useState } from "react";
 
 import { formatPrice } from "../utils";
 import type { PlanType, Product, ProductPlan } from "../types";
@@ -30,7 +30,7 @@ export function OrderDetailsSection({
     selectedPlan,
     onSelectPlan,
 }: OrderDetailsSectionProps) {
-    const [moreOpen, setMoreOpen] = useState(false);
+    // const [moreOpen, setMoreOpen] = useState(false);
 
     const plan = product.plans[selectedPlan];
     // If the product only has one plan, we still render the
@@ -41,7 +41,7 @@ export function OrderDetailsSection({
     const hasRating =
         typeof product.rating === "number" && !!product.ratingCount;
     const hasShort = !!product.shortFeatures?.length;
-    const hasMore = !!product.moreFeatures?.length;
+    // const hasMore = !!product.moreFeatures?.length;
 
     return (
         <div className="order-4 mt-[34px] lg:mt-[30px] px-[15px] lg:px-0 w-full lg:max-w-[401px] lg:ml-[185px]">
@@ -67,7 +67,7 @@ export function OrderDetailsSection({
                 {/* Thumbnail — always an <img>. URL requires `image`. */}
                 <div className="relative shrink-0 w-[130px] h-[73px] lg:w-[116px] lg:h-[65px] rounded-lg overflow-hidden bg-slate-100">
                     <img
-                        src={product.image}
+                        src={product?.promoThumbnail?.imageUrl}
                         alt={product.title}
                         className="w-full h-full object-cover"
                         loading="lazy"
@@ -113,7 +113,7 @@ export function OrderDetailsSection({
             )}
 
             {/* ---------- View more details ---------- */}
-            {hasMore && (
+            {/* {hasMore && (
                 <>
                     <button
                         type="button"
@@ -142,7 +142,7 @@ export function OrderDetailsSection({
                         </ul>
                     )}
                 </>
-            )}
+            )} */}
 
             {/* ---------- Price row ---------- */}
             {plan && (

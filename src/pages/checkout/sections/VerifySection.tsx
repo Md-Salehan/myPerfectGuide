@@ -50,6 +50,8 @@ interface VerifySectionProps {
   /** Called when the user clears an inline error. */
   onClearError: () => void;
 
+  emailLinkSent: boolean;
+
   /**
    * Called when the user submits. The parent runs the correct
    * mutation based on `channel`, and on success opens the
@@ -70,6 +72,7 @@ export function VerifySection({
   onChannelChange,
   onClearError,
   onSendOtp,
+  emailLinkSent
 }: VerifySectionProps) {
   // Which channel the user is currently editing. Separate from
   // `verifiedBy` — the user can switch inputs after verifying.
@@ -173,6 +176,12 @@ export function VerifySection({
               aria-describedby={hasError ? "checkout-verify-error" : undefined}
               className="w-full h-[45px] lg:h-[40px] px-[11px] rounded-md border border-slate-200 text-[14px] placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-200 disabled:opacity-60"
             />
+            {activeChannel === "email" && emailLinkSent && (
+              <p className="mt-2 text-[12px] text-slate-500">
+                We sent a sign-in link to <strong>{email}</strong>. Open it in the same browser
+                to verify and return to checkout.
+              </p>
+            )}
           </div>
         )}
 
@@ -256,13 +265,13 @@ export function VerifySection({
           >
             <rect x="6" y="2" width="12" height="20" rx="2" />
           </svg>
-          {sending
-            ? "Sending…"
-            : verifiedBy !== null
-              ? "Verified"
-              : activeChannel === "phone"
-                ? "Continue With Phone"
-                : "Continue With Email"}
+          {activeChannel === "phone"
+            ? sending ? "Sending…" : verifiedBy === "phone" ? "Verified" : "Continue With Phone"
+            : emailLinkSent
+              ? "Link Sent — Check Your Inbox"
+              : sending
+                ? "Sending…"
+                : "Send Verification Link"}
         </button>
       </form>
     </div>
