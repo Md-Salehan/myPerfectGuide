@@ -25,7 +25,7 @@ const courses: Record<string, Course> = {
      Taxation & Compliance
      ============================================================ */
   "taxation-compliance-2026": {
-    courseId: "taxation-compliance-2026",
+    courseId: "5ca6ac33-7157-4e62-9f5b-5163240f3cdc",
     url: "courses/complete-taxation-compliance",
     title: "Complete Taxation & Compliance Course 2026",
     shortTitle: "Taxation & Compliance",
@@ -95,11 +95,9 @@ const courses: Record<string, Course> = {
 
   /* ============================================================
      Digital Marketing
-     Homepage content mapped from `marketing` in the source.
-     Note: "year" slot = Standard, "life" slot = Premium.
      ============================================================ */
   "digital-marketing-2026": {
-    courseId: "digital-marketing-2026",
+    courseId: "126fcf6f-fb42-42c5-885f-b0ddb9e3a7f5",
     url: "courses/digital-marketing-2026",
     title: "Digital Marketing & Client Acquisition System 2026",
     shortTitle: "Digital & Performance Marketing",
@@ -128,12 +126,12 @@ const courses: Record<string, Course> = {
     ],
     plans: {
       year: {
-        label: "Standard — ₹4,999",
+        label: "1 Year — ₹4,999",
         price: 4999,
         original: 10000,
         off: "Flat 50% Off",
         offPercent: 50,
-        ctaLabel: "Enroll in Standard — ₹4,999",
+        ctaLabel: "Enroll in 1 Year — ₹4,999",
         features: [
           "15-module curriculum",
           "Live interactive classes",
@@ -143,12 +141,12 @@ const courses: Record<string, Course> = {
         ],
       },
       life: {
-        label: "Premium — ₹14,999",
+        label: "Lifetime — ₹14,999",
         price: 14999,
         original: 60000,
         off: "Flat 75% Off",
         offPercent: 75,
-        ctaLabel: "Enroll in Premium — ₹14,999",
+        ctaLabel: "Enroll in Lifetime — ₹14,999",
         note: "Your ₹10,000 Placement & Internship fee is 100% refundable if we don't deliver your internships and placement.",
         features: [
           "Everything in Standard",
@@ -167,7 +165,7 @@ const courses: Record<string, Course> = {
   },
 
   "web-development-2026": {
-    courseId: "web-development-2026",
+    courseId: "bce09622-84d8-4928-bdff-7688d3d4ba6b",
     url: "courses/web-development-2026",
     title: "Full Stack Web Development Bootcamp 2026",
     shortTitle: "Full-Stack Web Development",

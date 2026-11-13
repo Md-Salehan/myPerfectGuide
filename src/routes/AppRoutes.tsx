@@ -25,6 +25,7 @@ import { CheckoutPage } from "../pages/checkout";
 import { HomePage } from "../pages/home";
 import { CoursesPage } from "../pages/CoursesPage";
 import { EmailLinkPage } from "../pages/auth/EmailLinkPage";
+import { SuccessPage } from "../pages/checkout/SuccessPage";
 
 export function AppRoutes() {
   return (
@@ -43,6 +44,7 @@ export function AppRoutes() {
         <Route path={ROUTES.ABOUT} element={<AboutUsPage />} />
         <Route path={ROUTES.CONTACT} element={<ContactUsPage />} />
         <Route path={ROUTES.AUTH_EMAIL_LINK} element={<EmailLinkPage />} />
+        <Route path={ROUTES.CHECKOUT_SUCCESS} element={<SuccessPage />} />
         {/* <Route path="*" element={<Navigate to={ROUTES.COURSE_1} replace />} /> */}
       </Route>
     </Routes>

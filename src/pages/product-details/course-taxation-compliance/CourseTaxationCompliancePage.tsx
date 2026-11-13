@@ -76,7 +76,8 @@ export function CourseTaxationCompliancePage() {
           <div className="sticky-sidebar">
             <div className="sidebar-card">
               <SidebarEnrollCard
-                courseId="taxation-compliance-2026"
+                courseKey="taxation-compliance-2026"
+                courseId="5ca6ac33-7157-4e62-9f5b-5163240f3cdc"
                 promoThumbnail={{ type: "image", src: `${import.meta.env.BASE_URL}images/course-detail-asset/taxation/thumbnail.png`, alt: "Taxation & Compliance Course" }}
                 plans={[
                   {

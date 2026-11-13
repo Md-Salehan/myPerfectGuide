@@ -1,26 +1,14 @@
-// src/services/authApi.ts
 import { baseApi } from "./baseApi";
 import type { AuthPrincipal } from "../features/auth/authSlice";
 
-/* ------------------------------------------------------------
-   Shared response shapes (mirror the backend DTOs)
-   ------------------------------------------------------------ */
-
-export interface AuthResponse {
-  user: AuthPrincipal;
-}
-
 /**
- * Optional enrichment accepted by both /register and /login.
- * Identity fields (email/phone/verification flags) are NEVER
- * taken from here — the backend reads those from the Firebase
- * token. Only enrichment fields (name, DOB, address, …) are
- * consumed from the body.
+ * Optional enrichment. Identity fields (email/phone/verification) are
+ * read by the backend from the Firebase token — never from this body.
  */
 export interface StudentProfileInput {
   firstName?: string;
   lastName?: string;
-  dateOfBirth?: string; // ISO
+  dateOfBirth?: string;
   gender?: string;
   address?: string;
   city?: string;
@@ -29,16 +17,13 @@ export interface StudentProfileInput {
   country?: string;
 }
 
+export interface AuthResponse {
+  user: AuthPrincipal;
+}
+
 export const authApi = baseApi.injectEndpoints({
   endpoints: (build) => ({
-    registerStudent: build.mutation<AuthResponse, StudentProfileInput | void>({
-      query: (body) => ({
-        url: "/auth/register/student",
-        method: "POST",
-        body: body ?? {},
-      }),
-      invalidatesTags: ["Auth"],
-    }),
+    // Idempotent: registers on first call, logs in on subsequent.
     loginStudent: build.mutation<AuthResponse, StudentProfileInput | void>({
       query: (body) => ({
         url: "/auth/login/student",
@@ -47,6 +32,7 @@ export const authApi = baseApi.injectEndpoints({
       }),
       invalidatesTags: ["Auth"],
     }),
+    
     logout: build.mutation<void, void>({
       query: () => ({ url: "/auth/logout", method: "POST" }),
       invalidatesTags: ["Auth"],
@@ -59,7 +45,6 @@ export const authApi = baseApi.injectEndpoints({
 });
 
 export const {
-  useRegisterStudentMutation,
   useLoginStudentMutation,
   useLogoutMutation,
   useMeQuery,

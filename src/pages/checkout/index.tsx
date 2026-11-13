@@ -1,31 +1,23 @@
-// ============================================================
 // src/pages/checkout/index.tsx
-// Checkout page orchestrator.
 //
-// Verification architecture (Approach A — verify before order):
+// Approach A — verify before order. Firebase Phone Auth + Email Link.
+// Razorpay Checkout for payment. Authoritative price comes from the
+// backend quote endpoint — never from the static catalogue.
 //
-//   Phone  → Firebase Phone Auth SDK (SMS OTP).
-//            usePhoneVerification returns plain Promises.
-//            <OtpModal> is phone-only and Promise-native — no
-//            adapters, no fake RequestHandle, no abort shim.
-//
-//   Email  → Firebase Email Link (sendSignInLinkToEmail).
-//            No modal. The user leaves, clicks the link, and
-//            lands on /auth/email-link, which signs in, refreshes
-//            the ID token, calls /auth/sync, and redirects back
-//            here with ?courseId=…&plan=… preserved.
-//
-//   Both   → POST /auth/sync → principal in Redux.
-//   verifiedBy is hydrated from authState.principal on mount so
-//   the email-link round-trip restores the gate after remount.
-// ============================================================
+// Payment flow (callback-based, no polling):
+//   PayBar click
+//     → POST /orders (internal Order + Razorpay order + Payment row)
+//     → window.Razorpay(...).open()
+//     → user pays → handler(response)
+//     → POST /payments/verify (signature + Razorpay fetch)
+//        → backend commits Payment PAID + Order PAID + Enrollment + Invoice
+//     → navigate to /order/success with the verify result in router state
+//     → SuccessPage renders immediately from state (no further requests)
 
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { Navigate, useSearchParams } from "react-router-dom";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Navigate, useNavigate, useParams, useSearchParams } from "react-router-dom";
 
 import { CheckoutHeader } from "./sections/CheckoutHeader";
-import { CouponSection } from "./sections/CouponSection";
-import { GstSection } from "./sections/GstSection";
 import { OrderDetailsSection } from "./sections/OrderDetailsSection";
 import { PayBar } from "./sections/PayBar";
 import { ReceiptSection } from "./sections/ReceiptSection";
@@ -39,30 +31,23 @@ import { PayErrorModal } from "./modals/PayErrorModal";
 
 import {
     CHECKOUT_PLAN_PARAM,
-    CHECKOUT_ERROR_EVENT,
-    CHECKOUT_REDIRECT_EVENT,
-    CHECKOUT_SUBMIT_EVENT,
     DEFAULT_OTP_CHANNEL,
     EMAIL_REGEX,
-    GSTIN_REGEX,
     PHONE_REGEX,
 } from "./constants";
-import {
-    buildOrderPayload,
-    computeTotals,
-    isGstFilled,
-    resolveCourseFromParams,
-} from "./utils";
+import { computeTotals, resolveCourseFromParams } from "./utils";
 
 import {
     useCreateOrderMutation,
-    useValidateGstMutation,
+    useGetCheckoutQuoteQuery,
+    useVerifyPaymentMutation,
+    type CreateOrderResult,
+    type PlanUrlId,
 } from "../../services/checkoutApi";
 
 import type {
     CheckoutErrors,
     CheckoutModal,
-    GstDetails,
     PlanType,
     VerifiedBy,
     OTPChannel,
@@ -71,21 +56,8 @@ import type {
 import { useAuth } from "../../features/auth/useAuth";
 import { useEmailLink } from "../../features/auth/useEmailLink";
 import { usePhoneVerification } from "../../features/auth/usePhoneVerification";
-import { useSyncMutation } from "../../services/authApi";
-import { useAppDispatch } from "../../app/hooks";
-import { setPrincipal } from "../../features/auth/authSlice";
+import { useStudentAuth } from "../../features/auth/useStudentAuth";
 import { getFirebaseAuthClient } from "../../config/firebase";
-
-/* ------------------------------------------------------------
-   Constants local to the page
-   ------------------------------------------------------------ */
-
-const EMPTY_GST: GstDetails = {
-    number: "",
-    name: "",
-    address: "",
-    state: "",
-};
 
 const EMPTY_ERRORS: CheckoutErrors = {
     phone: "",
@@ -93,21 +65,61 @@ const EMPTY_ERRORS: CheckoutErrors = {
     email: "",
 };
 
-/* ------------------------------------------------------------
-   Component
-   ------------------------------------------------------------ */
+/* ── Razorpay global typings ── */
+declare global {
+    interface Window {
+        Razorpay: new (options: RazorpayOptions) => RazorpayInstance;
+    }
+}
+
+interface RazorpaySuccessResponse {
+    razorpay_order_id: string;
+    razorpay_payment_id: string;
+    razorpay_signature: string;
+}
+
+interface RazorpayFailureResponse {
+    error: {
+        code: string;
+        description: string;
+        reason: string;
+        metadata?: { order_id?: string; payment_id?: string };
+    };
+}
+
+interface RazorpayOptions {
+    key: string;
+    order_id: string;
+    amount: number;
+    currency: string;
+    name: string;
+    description: string;
+    prefill: { email: string | null; contact: string | null };
+    handler: (response: RazorpaySuccessResponse) => void | Promise<void>;
+    modal?: { ondismiss?: () => void };
+    theme?: { color?: string };
+}
+
+interface RazorpayInstance {
+    open: () => void;
+    on: (event: "payment.failed", cb: (response: RazorpayFailureResponse) => void) => void;
+}
 
 export function CheckoutPage() {
-    /* ---------- URL + resolved course + plan ---------- */
-
     const [searchParams, setSearchParams] = useSearchParams();
+    const { courseKey } = useParams();
+    const navigate = useNavigate();
 
     const resolved = useMemo(
-        () => resolveCourseFromParams(searchParams),
+        () => resolveCourseFromParams({
+            // courseId: searchParams.get("courseId"),
+            plan: searchParams.get("plan"),
+            courseKey: courseKey ?? "",
+        }),
         [searchParams],
     );
-
     const courseId = resolved?.course.courseId ?? "";
+    const planUrlId: PlanUrlId = (resolved?.plan ?? "year") as PlanUrlId;
 
     /* ---------- State ---------- */
 
@@ -116,89 +128,83 @@ export function CheckoutPage() {
     const [phone, setPhone] = useState("");
     const [email, setEmail] = useState("");
     const [verifiedBy, setVerifiedBy] = useState<VerifiedBy>(null);
-    const [gstOpen, setGstOpen] = useState(false);
-    const [gst, setGst] = useState<GstDetails>(EMPTY_GST);
-    const [coupon, setCoupon] = useState<string | null>(null);
-    const [discount, setDiscount] = useState(0);
     const [submitting, setSubmitting] = useState(false);
     const [errors, setErrors] = useState<CheckoutErrors>(EMPTY_ERRORS);
     const [modal, setModal] = useState<CheckoutModal>(null);
     const [sending, setSending] = useState(false);
     const [emailLinkSent, setEmailLinkSent] = useState(false);
 
-    /* ---------- Mutations ---------- */
-    const [validateGst] = useValidateGstMutation();
-    const [createOrder] = useCreateOrderMutation();
-    const [sync] = useSyncMutation();
-    const dispatch = useAppDispatch();
+    // One idempotency key per checkout attempt. Regenerated when the user
+    // retries after Razorpay dismisses the modal or a terminal error.
+    const idempotencyKeyRef = useRef<string>(crypto.randomUUID());
 
-    /* ---------- Auth hooks ---------- */
+    /* ---------- Auth ---------- */
+
     const authState = useAuth();
+    const { login } = useStudentAuth();
     const { sendOtp: sendPhoneOtp, verifyOtp: verifyPhoneOtp } =
         usePhoneVerification("recaptcha-container");
     const { sendLink } = useEmailLink();
 
-    /* ---------- Effective product ---------- */
+    /* ---------- Backend quote (authoritative price) ---------- */
 
-    const product = resolved?.course ?? null;
-
-    /* ---------- Derived: plan, totals ---------- */
-
-    const planData = resolved?.planData;
-    const subtotal = planData?.price ?? 0;
-    const totals = useMemo(
-        () => computeTotals(subtotal, discount),
-        [subtotal, discount],
+    const {
+        data: quote,
+        isLoading: quoteLoading,
+        error: quoteError,
+        refetch: refetchQuote,
+    } = useGetCheckoutQuoteQuery(
+        { courseId, plan: planUrlId },
+        { skip: !courseId || verifiedBy === null },
     );
 
-    /* ------------------------------------------------------------
-       Hydrate verifiedBy after the email-link round-trip.
-       ------------------------------------------------------------
-       EmailLinkPage signs in, calls /auth/sync, then redirects
-       back to /order?courseId=...&plan=..., which remounts this
-       component with fresh state (verifiedBy = null). The Firebase
-       session + principal survive, so we restore the gate here.
-       ------------------------------------------------------------ */
+    const alreadyEnrolled = false;
+    const subtotal = resolved?.planData.price ?? 0;
+    const totals = useMemo(() => computeTotals(subtotal, 0), [subtotal]);
+
+    /* ---------- Product (catalogue — display only) ---------- */
+
+    const product = resolved?.course ?? null;
+    const planData = resolved?.planData;
+
+    /* ---------- Hydrate verifiedBy after the email-link round-trip ---------- */
+
     useEffect(() => {
         if (verifiedBy !== null) return;
         const p = authState.principal;
-        if (!p) return;
-        if (p.phoneVerified) {
-            (() => {
+        (() => {
+            if (!p) return;
+            if (p.phoneVerified) {
                 setVerifiedBy("phone");
                 if (p.phone) setPhone(p.phone.replace(/^\+91/, ""));
-            })();
-        } else if (p.emailVerified) {
-            (() => {
+            } else if (p.emailVerified) {
                 setVerifiedBy("email");
                 if (p.email) setEmail(p.email);
                 setEmailLinkSent(true);
-            })();
-        }
+            }
+        })()
     }, [authState.principal, verifiedBy]);
 
     /* ---------- Inline-field handlers ---------- */
 
     const handlePhoneChange = useCallback((value: string) => {
         setPhone(value);
-        setVerifiedBy((current) => (current === "phone" ? null : current));
+        setVerifiedBy((cur) => (cur === "phone" ? null : cur));
         setErrors((e) => (e.phone ? { ...e, phone: "" } : e));
     }, []);
 
     const handleEmailChange = useCallback((value: string) => {
         setEmail(value);
         setEmailLinkSent(false);
-        setVerifiedBy((current) => (current === "email" ? null : current));
+        setVerifiedBy((cur) => (cur === "email" ? null : cur));
         setErrors((e) => (e.email ? { ...e, email: "" } : e));
     }, []);
 
     const clearVerifyError = useCallback(() => {
-        setErrors((e) =>
-            e.phone || e.email ? { ...e, phone: "", email: "" } : e,
-        );
+        setErrors((e) => (e.phone || e.email ? { ...e, phone: "", email: "" } : e));
     }, []);
 
-    /* ---------- Plan change (also resets coupon discount) ---------- */
+    /* ---------- Plan change ---------- */
 
     const handleSelectPlan = useCallback(
         (next: PlanType) => {
@@ -211,22 +217,18 @@ export function CheckoutPage() {
                 },
                 { replace: true },
             );
+            // New plan → new Razorpay order needed on next attempt.
+            idempotencyKeyRef.current = crypto.randomUUID();
         },
         [setSearchParams],
     );
 
-    /* ------------------------------------------------------------
-       Send verification (from VerifySection)
-       ------------------------------------------------------------
-       Phone  → open OtpModal on success.
-       Email  → send the Firebase sign-in link; user leaves the page.
-       ------------------------------------------------------------ */
+    /* ---------- Verification ---------- */
 
     const handleSendOtp = useCallback(
         async (activeChannel: VerifyChannel) => {
             if (sending || verifiedBy !== null) return;
 
-            /* ---------- Phone ---------- */
             if (activeChannel === "phone") {
                 if (!PHONE_REGEX.test(phone)) {
                     setErrors((e) => ({
@@ -236,15 +238,10 @@ export function CheckoutPage() {
                     return;
                 }
                 setErrors((e) => ({ ...e, phone: "" }));
-
                 setSending(true);
                 try {
                     await sendPhoneOtp(phone);
-                    setModal({
-                        kind: "otp",
-                        channel: "phone",
-                        identity: phone,
-                    });
+                    setModal({ kind: "otp", channel: "phone", identity: phone });
                 } catch {
                     setErrors((e) => ({
                         ...e,
@@ -256,7 +253,6 @@ export function CheckoutPage() {
                 return;
             }
 
-            /* ---------- Email ---------- */
             const trimmed = email.trim();
             if (!EMAIL_REGEX.test(trimmed)) {
                 setErrors((e) => ({
@@ -266,7 +262,6 @@ export function CheckoutPage() {
                 return;
             }
             setErrors((e) => ({ ...e, email: "" }));
-
             setSending(true);
             try {
                 await sendLink(trimmed);
@@ -283,25 +278,13 @@ export function CheckoutPage() {
         [sending, verifiedBy, phone, email, sendPhoneOtp, sendLink],
     );
 
-    /* ------------------------------------------------------------
-       Phone OTP success
-       ------------------------------------------------------------
-       1. force-refresh the ID token so the backend sees the
-          latest phone_number claim;
-       2. POST /auth/sync to resolve/create the Student;
-       3. store the principal in Redux;
-       4. set verifiedBy = "phone".
-       ------------------------------------------------------------ */
-
     const handleOtpSuccess = useCallback(async () => {
         setModal(null);
         try {
             const user = getFirebaseAuthClient().currentUser;
             if (!user) throw new Error("No Firebase user after phone verification");
             await user.getIdToken(true);
-
-            const result = await sync().unwrap();
-            dispatch(setPrincipal(result.principal));
+            await login();
             setVerifiedBy("phone");
         } catch {
             setErrors((e) => ({
@@ -309,123 +292,136 @@ export function CheckoutPage() {
                 phone: "Could not register your account. Please try again.",
             }));
         }
-    }, [sync, dispatch]);
+    }, [login]);
 
-    /* ------------------------------------------------------------
-       Coupon
-       ------------------------------------------------------------ */
+    /* ---------- Razorpay mutations ---------- */
 
-    const handleCouponApply = useCallback(
-        (result: { code: string | null; discount: number }) => {
-            setCoupon(result.code);
-            setDiscount(result.discount);
-        },
-        [],
-    );
+    const [createOrder] = useCreateOrderMutation();
+    const [verifyPayment] = useVerifyPaymentMutation();
 
-    /* ------------------------------------------------------------
-       Pay
-       ------------------------------------------------------------ */
+    /* ---------- Pay ---------- */
 
     const handlePay = useCallback(async () => {
-        if (submitting || verifiedBy === null || !product || !planData) {
+        if (
+            submitting ||
+            verifiedBy === null ||
+            !product ||
+            !planData ||
+            quoteLoading ||
+            alreadyEnrolled ||
+            !!quoteError
+        ) {
             return;
         }
 
-        if (isGstFilled(gst)) {
-            if (!GSTIN_REGEX.test(gst.number.trim())) {
-                setGstOpen(true);
-                setErrors((e) => ({
-                    ...e,
-                    gst: "Please enter a valid 15-character GST number.",
-                }));
-                return;
-            }
-            try {
-                const result = await validateGst(gst).unwrap();
-                if (!result.valid) {
-                    setGstOpen(true);
-                    setErrors((e) => ({
-                        ...e,
-                        gst: result.reason ?? "Invalid GST information.",
-                    }));
-                    return;
-                }
-            } catch {
-                setGstOpen(true);
-                setErrors((e) => ({
-                    ...e,
-                    gst: "Could not validate GST. Please try again.",
-                }));
-                return;
-            }
-        }
-        setErrors((e) => ({ ...e, gst: "" }));
-
         setSubmitting(true);
-        const payload = buildOrderPayload({
-            courseId,
-            plan,
-            planLabel: planData.label,
-            totals,
-            coupon,
-            verifiedBy,
-            channel,
-            phone,
-            email,
-            gst,
+        setErrors(EMPTY_ERRORS);
+
+        let order: CreateOrderResult;
+        try {
+            order = await createOrder({
+                courseId,
+                plan: planUrlId,
+                idempotencyKey: idempotencyKeyRef.current,
+            }).unwrap();
+        } catch (err) {
+            setSubmitting(false);
+            const code = (err as { data?: { error?: { code?: string } } })?.data
+                ?.error?.code;
+            if (code === "ALREADY_ENROLLED") {
+                refetchQuote();
+                return;
+            }
+            setModal({
+                kind: "pay-error",
+                message:
+                    code === "GATEWAY_ERROR"
+                        ? "The payment gateway is temporarily unavailable. Please try again."
+                        : "We couldn't create your order. Please try again.",
+            });
+            return;
+        }
+
+        const rzp = new window.Razorpay({
+            key: import.meta.env.VITE_RAZORPAY_KEY_ID,
+            order_id: order.razorpayOrderId,
+            amount: order.amount,
+            currency: order.currency,
+            name: order.name,
+            description: order.description,
+            prefill: order.prefill,
+            theme: { color: "#4f46e5" }, // indigo-600
+            handler: async (response) => {
+                try {
+                    const verified = await verifyPayment({
+                        orderId: order.orderId,
+                        razorpayOrderId: response.razorpay_order_id,
+                        razorpayPaymentId: response.razorpay_payment_id,
+                        razorpaySignature: response.razorpay_signature,
+                    }).unwrap();
+
+                    // Confirmation page reads this from router state — no polling.
+                    navigate(`/order/success?orderId=${order.orderId}`, {
+                        replace: true,
+                        state: { verified },
+                    });
+                } catch (err) {
+                    setSubmitting(false);
+                    const code = (err as { data?: { error?: { code?: string } } })?.data
+                        ?.error?.code;
+                    const message =
+                        code === "SIGNATURE_INVALID"
+                            ? "Payment could not be verified. If money was debited, contact support."
+                            : code === "PAYMENT_NOT_CAPTURED"
+                                ? "Payment was not captured by Razorpay. Please try again."
+                                : code === "AMOUNT_MISMATCH"
+                                    ? "Payment amount mismatch. Please try again."
+                                    : code === "ORDER_ALREADY_PAID"
+                                        ? "This order was already paid. Check your order history."
+                                        : "We couldn't confirm your payment. If money was debited, contact support.";
+                    setModal({ kind: "pay-error", message });
+                }
+            },
+            modal: {
+                ondismiss: () => {
+                    // Modal closed without a result. Order stays PENDING.
+                    // New idempotency key on retry — Razorpay expires old orders.
+                    setSubmitting(false);
+                    idempotencyKeyRef.current = crypto.randomUUID();
+                },
+            },
         });
 
-        try {
-            const result = await createOrder(payload).unwrap();
-
-            if (result.redirectUrl) {
-                document.dispatchEvent(
-                    new CustomEvent(CHECKOUT_REDIRECT_EVENT, {
-                        detail: { payload, response: result },
-                    }),
-                );
-                window.location.href = result.redirectUrl;
-                return;
-            }
-
-            document.dispatchEvent(
-                new CustomEvent(CHECKOUT_SUBMIT_EVENT, {
-                    detail: { payload, response: result },
-                }),
-            );
-            setSubmitting(false);
-            // eslint-disable-next-line no-console
-            console.info("Order created", result);
-        } catch (error) {
-            document.dispatchEvent(
-                new CustomEvent(CHECKOUT_ERROR_EVENT, { detail: error }),
-            );
+        // In-modal failure — surface through PayErrorModal.
+        rzp.on("payment.failed", (failure) => {
             setSubmitting(false);
             setModal({
                 kind: "pay-error",
                 message:
-                    "Something went wrong while creating your order. Please try again.",
+                    failure.error.description ||
+                    "Payment failed. Please try again.",
             });
-        }
+            idempotencyKeyRef.current = crypto.randomUUID();
+        });
+
+        rzp.open();
     }, [
         submitting,
         verifiedBy,
         product,
         planData,
+        quoteLoading,
+        alreadyEnrolled,
+        quoteError,
         courseId,
-        gst,
-        plan,
-        totals,
-        coupon,
-        channel,
-        phone,
-        email,
-        validateGst,
+        planUrlId,
         createOrder,
+        verifyPayment,
+        navigate,
+        refetchQuote,
     ]);
 
-    /* ---------- Redirect if URL is invalid ---------- */
+    /* ---------- Redirect if the URL is invalid ---------- */
 
     if (!resolved || !product) {
         return <Navigate to="/" replace />;
@@ -435,9 +431,7 @@ export function CheckoutPage() {
 
     return (
         <div className="min-h-screen flex flex-col lg:grid lg:grid-cols-2 bg-white pb-[150px] lg:pb-0">
-            {/* ============================================================
-          LEFT COLUMN
-          ============================================================ */}
+            {/* LEFT COLUMN */}
             <section className="max-lg:contents lg:block lg:bg-white lg:pb-10">
                 <CheckoutHeader />
 
@@ -447,18 +441,10 @@ export function CheckoutPage() {
                     onSelectPlan={handleSelectPlan}
                 />
 
-                <GstSection
-                    open={gstOpen}
-                    gst={gst}
-                    error={errors.gst}
-                    onToggle={() => setGstOpen((o) => !o)}
-                    onChange={setGst}
-                />
+                {/* CouponSection / GstSection hidden in Phase 4 (out of scope). */}
             </section>
 
-            {/* ============================================================
-          RIGHT COLUMN
-          ============================================================ */}
+            {/* RIGHT COLUMN */}
             <section className="max-lg:contents lg:block lg:bg-slate-50 lg:pt-[71px] lg:pb-12">
                 <VerifySection
                     phone={phone}
@@ -476,26 +462,39 @@ export function CheckoutPage() {
                 />
                 <div id="recaptcha-container" />
 
-                <CouponSection
-                    subtotal={subtotal}
-                    onApply={handleCouponApply}
-                    locked={verifiedBy === null}
-                />
+                {quoteError && (
+                    <p className="mt-[16px] px-[15px] lg:px-0 lg:max-w-[400px] lg:ml-[57px] text-[13px] text-rose-500">
+                        Couldn't load pricing. Please refresh the page.
+                    </p>
+                )}
+
+                {alreadyEnrolled && (
+                    <div className="mt-[16px] px-[15px] lg:px-0 lg:max-w-[400px] lg:ml-[57px]">
+                        <p className="text-[14px] text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-lg p-3">
+                            You already own this course.{" "}
+                            <a
+                                href={`/course/${quote?.course.slug ?? ""}`}
+                                className="font-medium text-emerald-800 underline"
+                            >
+                                Go to course
+                            </a>
+                        </p>
+                    </div>
+                )}
 
                 <ReceiptSection subtotal={totals.subtotal} total={totals.total} />
 
                 <PayBar
                     total={totals.total}
-                    disabled={verifiedBy === null}
+                    disabled={
+                        verifiedBy === null || quoteLoading || alreadyEnrolled || !!quoteError
+                    }
                     submitting={submitting}
                     onPay={handlePay}
                 />
             </section>
 
-            {/* ============================================================
-          MODALS
-          ============================================================ */}
-
+            {/* MODALS */}
             <OtpModal
                 open={modal?.kind === "otp"}
                 identity={modal?.kind === "otp" ? modal.identity : ""}

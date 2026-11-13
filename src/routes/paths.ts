@@ -8,7 +8,7 @@ export const ROUTES = {
   HOME: "/",
   ABOUT: "/about",
   CONTACT: "/contact",
-  CHECKOUT: "/order",
+  CHECKOUT: "/order/:courseKey",
   ALL_COURSES: "/courses",
   COURSE_1: "/courses/complete-taxation-compliance",
   COURSE_2: "/courses/digital-marketing",
@@ -16,6 +16,7 @@ export const ROUTES = {
   COURSE_4: "/courses/accounting-bookkeeping",
   COURSE_5: "/courses/tax-planning",
   AUTH_EMAIL_LINK: "/auth/email-link",
+  CHECKOUT_SUCCESS: "/order/success",
 } as const;
 
 /**

@@ -80,23 +80,30 @@ export interface ResolvedCourse {
  *
  * The caller (CheckoutPage) redirects to "/" on `null`, matching
  * the source's behaviour for an invalid URL.
+ * 
  */
+
+type ResolveCourseFromParamsProps = {
+    // courseId: string | null,
+    plan: string | null,
+    courseKey?: string | null,
+};
 export function resolveCourseFromParams(
-    params: URLSearchParams,
+    {plan, courseKey}: ResolveCourseFromParamsProps,
 ): ResolvedCourse | null {
-    const courseId = params.get("courseId");
-    const course = getCourse(courseId);
+    const resolvedCourseKey = courseKey;
+    const course = getCourse(resolvedCourseKey);
     if (!course) return null;
 
     // Only fall back to DEFAULT_PLAN when the URL omits `plan`.
     // A `plan` that is present but unrecognised is still treated
     // as DEFAULT_PLAN by `parsePlan`; the `planData` check below
     // then rejects it if the course doesn't offer that plan.
-    const plan = parsePlan(params.get("plan"));
-    const planData = course.plans[plan];
+    const planType = parsePlan(plan);
+    const planData = course.plans[planType];
     if (!planData) return null;
 
-    return { course, plan, planData };
+    return { course, plan: planType, planData };
 }
 
 /* ------------------------------------------------------------

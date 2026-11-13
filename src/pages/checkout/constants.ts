@@ -37,7 +37,7 @@ import type { OTPChannel, PlanType } from "./types";
    ------------------------------------------------------------ */
 
 /** Path of the checkout / order page. */
-export const CHECKOUT_ROUTE = "/order";
+export const CHECKOUT_ROUTE = "/order/";
 
 /** Query param carrying the selected course id. */
 export const CHECKOUT_COURSE_PARAM = "courseId";

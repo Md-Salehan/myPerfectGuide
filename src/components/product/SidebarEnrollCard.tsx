@@ -71,6 +71,11 @@ export interface SidebarEnrollCardProps {
    * `?courseId=` param on the checkout URL.
    */
   courseId: string;
+  /**
+   * Key of the course these plans belong to. Used for identifying
+   * the course in the checkout process.
+   */
+  courseKey: string;
   /** Promo banner media — image or video. */
   promoThumbnail: PromoThumbnail;
   /** Plan options. First plan is selected by default. */
@@ -90,6 +95,7 @@ export interface SidebarEnrollCardProps {
 }
 
 export function SidebarEnrollCard({
+  courseKey,
   courseId,
   promoThumbnail,
   plans,
@@ -124,7 +130,7 @@ export function SidebarEnrollCard({
       [CHECKOUT_COURSE_PARAM]: courseId,
       [CHECKOUT_PLAN_PARAM]: selectedPlan.key,
     });
-    navigate(`${CHECKOUT_ROUTE}?${params.toString()}`);
+    navigate(`${CHECKOUT_ROUTE}/${courseKey}?${params.toString()}`);
   }, [courseId, navigate, onEnroll, selectedPlan.key]);
 
   return (
