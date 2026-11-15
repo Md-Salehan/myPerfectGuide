@@ -26,8 +26,8 @@ import type { NavLink } from "../types/common";
  */
 export const NAV_LINKS: readonly NavLink[] = [
   {
-    label: "Courses",
-    href: import.meta.env.VITE_API_BASE_URL + ROUTES.ALL_COURSES,
+    label: "All Courses",
+    href: import.meta.env.BASE_URL + ROUTES.ALL_COURSES,
     variant: "primary",
     hasDropdown: true,
   },
@@ -50,12 +50,12 @@ export const NAV_LINKS: readonly NavLink[] = [
   // },
   {
     label: "About Us",
-    href: import.meta.env.VITE_API_BASE_URL + ROUTES.ABOUT,
+    href: import.meta.env.BASE_URL + ROUTES.ABOUT,
     variant: "plain",
   },
   {
     label: "Request Callback",
-    href: import.meta.env.VITE_API_BASE_URL + ROUTES.ABOUT,
+    href: import.meta.env.BASE_URL + ROUTES.ABOUT,
     variant: "plain",
   },
 ] as const;
@@ -77,14 +77,14 @@ export const NAV_LINKS: readonly NavLink[] = [
  */
 export const MOBILE_NAV_LINKS: readonly NavLink[] = [
   {
-    label: "Courses",
-    href: "#",
+    label: "All Courses",
+    href: import.meta.env.BASE_URL + ROUTES.ALL_COURSES,
     variant: "highlight",
   },
 
   {
     label: "About Us",
-    href: import.meta.env.VITE_API_BASE_URL + ROUTES.ABOUT,
+    href: import.meta.env.BASE_URL + ROUTES.ABOUT,
     variant: "plain",
   },
   // {

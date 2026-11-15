@@ -86,7 +86,7 @@ export function Header() {
     >
       <div className="shell flex items-center justify-between h-[76px]">
         {/* ---------- Logo ---------- */}
-        <a href={import.meta.env.VITE_API_BASE_URL + ROUTES.HOME} className="flex items-center gap-2 shrink-0">
+        <a href={import.meta.env.BASE_URL} className="flex items-center gap-2 shrink-0">
           <img
             src={import.meta.env.BASE_URL + "images/brand-logo-light.png"}
             alt="My Perfect Guide"
@@ -101,7 +101,7 @@ export function Header() {
           ))}
 
           <Button
-            href={import.meta.env.VITE_APP_BASE_URL + ROUTES.HOME}
+            href={import.meta.env.BASE_URL + ROUTES.DASHBOARD}
             variant="primary"
             className="text-sm px-5 py-2.5 ml-1"
           >
@@ -171,11 +171,11 @@ export function Header() {
           ))}
 
           <Button
-            href={import.meta.env.VITE_APP_BASE_URL + ROUTES.HOME}
+            href={import.meta.env.BASE_URL + ROUTES.DASHBOARD}
             variant="primary"
             className="text-sm px-5 py-3 mt-2 justify-center"
           >
-            Log In
+            Dashboard
           </Button>
         </div>
       </div>

@@ -317,13 +317,15 @@ export function CheckoutPage() {
         setSubmitting(true);
         setErrors(EMPTY_ERRORS);
 
-        let order: CreateOrderResult;
+        let order: CreateOrderResult["data"];
         try {
-            order = await createOrder({
+            const result = await createOrder({
                 courseId,
                 plan: planUrlId,
                 idempotencyKey: idempotencyKeyRef.current,
             }).unwrap();
+            if(!result.success) throw new Error("No order returned from backend");
+            order = result.data;
         } catch (err) {
             setSubmitting(false);
             const code = (err as { data?: { error?: { code?: string } } })?.data
@@ -342,6 +344,8 @@ export function CheckoutPage() {
             return;
         }
 
+        console.log("log-[razorpay order]", order);
+
         const rzp = new window.Razorpay({
             key: import.meta.env.VITE_RAZORPAY_KEY_ID,
             order_id: order.razorpayOrderId,
@@ -352,6 +356,12 @@ export function CheckoutPage() {
             prefill: order.prefill,
             theme: { color: "#4f46e5" }, // indigo-600
             handler: async (response) => {
+                console.log("log-[verify payload]", response, {
+                    orderId: order.orderId,
+                    razorpayOrderId: response.razorpay_order_id,
+                    razorpayPaymentId: response.razorpay_payment_id,
+                    razorpaySignature: response.razorpay_signature,
+                });
                 try {
                     const verified = await verifyPayment({
                         orderId: order.orderId,

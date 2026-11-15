@@ -31,14 +31,18 @@ export interface QuoteResult {
 }
 
 export interface CreateOrderResult {
-  orderId: string;
-  razorpayOrderId: string;
-  keyId: string;
-  amount: number;             // paise
-  currency: "INR";
-  name: string;
-  description: string;
-  prefill: { email: string | null; contact: string | null };
+  success: boolean;
+  data: {
+    orderId: string;
+    razorpayOrderId: string;
+    keyId: string;
+    amount: number;             // paise
+    currency: "INR";
+    name: string;
+    description: string;
+    prefill: { email: string | null; contact: string | null };
+  }
+  message: string;
 }
 
 export interface VerifyPaymentResult {
