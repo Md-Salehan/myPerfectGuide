@@ -23,18 +23,8 @@
  *   - "highlight" → the light slate pill used for "AI Course"
  *   - "plain"     → every other nav link
  */
-export interface NavLink {
-  /** Visible label of the link. */
-  label: string;
-  /** Target href (or route path). */
-  href: string;
-  /** Optional variant controlling the visual style. */
-  variant?: "primary" | "highlight" | "plain";
-  /** Whether to render a chevron-down indicator after the label. */
-  hasDropdown?: boolean;
-  /** Optional short badge text, e.g. "NEW". */
-  badge?: string;
-}
+
+
 
 /**
  * A single link inside a footer column.

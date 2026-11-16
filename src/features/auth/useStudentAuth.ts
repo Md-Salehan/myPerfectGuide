@@ -1,7 +1,7 @@
 import { useCallback } from "react";
 import { useAppDispatch } from "../../app/hooks";
 import {
-  useLoginStudentMutation,
+    useLoginRegStudentMutation,
   type StudentProfileInput,
 } from "../../services/authApi";
 import { setAuthError, setLoading, setPrincipal } from "./authSlice";
@@ -18,15 +18,15 @@ import { setAuthError, setLoading, setPrincipal } from "./authSlice";
  */
 export function useStudentAuth() {
   const dispatch = useAppDispatch();
-  const [loginMutation] = useLoginStudentMutation();
+  const [loginMutation] = useLoginRegStudentMutation();
 
   const login = useCallback(
     async (input?: StudentProfileInput) => {
       dispatch(setLoading());
       try {
         const result = await loginMutation(input ?? {}).unwrap();
-        dispatch(setPrincipal(result.user));
-        return result.user;
+        dispatch(setPrincipal(result?.data?.user));
+        return result?.data?.user;
       } catch (e) {
         const msg =
           (e as { data?: { error?: { message?: string } } })?.data?.error

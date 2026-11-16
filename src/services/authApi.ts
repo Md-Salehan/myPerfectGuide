@@ -8,25 +8,29 @@ import type { AuthPrincipal } from "../features/auth/authSlice";
 export interface StudentProfileInput {
   firstName?: string;
   lastName?: string;
-  dateOfBirth?: string;
-  gender?: string;
-  address?: string;
-  city?: string;
-  state?: string;
-  postalCode?: string;
-  country?: string;
+//   dateOfBirth?: string;
+//   gender?: string;
+//   address?: string;
+//   city?: string;
+//   state?: string;
+//   postalCode?: string;
+//   country?: string;
 }
 
 export interface AuthResponse {
-  user: AuthPrincipal;
+  success: boolean;
+  data: {
+    user: AuthPrincipal;
+  };
+  message: string;
 }
 
 export const authApi = baseApi.injectEndpoints({
   endpoints: (build) => ({
     // Idempotent: registers on first call, logs in on subsequent.
-    loginStudent: build.mutation<AuthResponse, StudentProfileInput | void>({
+    loginRegStudent: build.mutation<AuthResponse, StudentProfileInput | void>({
       query: (body) => ({
-        url: "/auth/login/student",
+        url: "/auth/loginReg/student",
         method: "POST",
         body: body ?? {},
       }),
@@ -45,7 +49,7 @@ export const authApi = baseApi.injectEndpoints({
 });
 
 export const {
-  useLoginStudentMutation,
+  useLoginRegStudentMutation,
   useLogoutMutation,
   useMeQuery,
 } = authApi;

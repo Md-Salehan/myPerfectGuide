@@ -20,7 +20,7 @@ export function useAuth() {
 
   // /me — only runs when Firebase reports a signed-in user.
   // `skip` prevents a 401 storm on logged-out pages.
-  const { data, isError, error } = useMeQuery(undefined, {
+  const { data:result, isError, error } = useMeQuery(undefined, {
     skip: !getFirebaseAuthClient().currentUser,
   });
 
@@ -28,8 +28,8 @@ export function useAuth() {
 
   // Hydrate Redux from /me whenever it resolves.
   useEffect(() => {
-    if (data?.user) dispatch(setPrincipal(data.user));
-  }, [data, dispatch]);
+    if (result?.data?.user) dispatch(setPrincipal(result.data.user));
+  }, [result, dispatch]);
 
   useEffect(() => {
     if (isError) {

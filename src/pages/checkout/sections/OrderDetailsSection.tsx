@@ -44,7 +44,7 @@ export function OrderDetailsSection({
     // const hasMore = !!product.moreFeatures?.length;
 
     return (
-        <div className="order-4 mt-[34px] lg:mt-[30px] px-[15px] lg:px-0 w-full lg:max-w-[401px] lg:ml-[185px]">
+        <div className="order-4 mt-[34px] lg:mt-[80px] px-[15px] lg:px-0 w-full lg:max-w-[401px] lg:ml-[185px]">
             <h1 className="flex items-center gap-2 text-[18px] lg:text-[20px] font-semibold h-[26px]">
                 <svg
                     className="w-[18px] h-[18px]"
@@ -186,7 +186,7 @@ export function OrderDetailsSection({
             )}
 
             {/* ---------- Divider ---------- */}
-            <hr className="mt-[32px] lg:mt-[30px] border-slate-200" />
+            {/* <hr className="mt-[32px] lg:mt-[30px] border-slate-200" /> */}
         </div>
     );
 }

@@ -17,7 +17,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Navigate, useNavigate, useParams, useSearchParams } from "react-router-dom";
 
-import { CheckoutHeader } from "./sections/CheckoutHeader";
+// import { CheckoutHeader } from "./sections/CheckoutHeader";
 import { OrderDetailsSection } from "./sections/OrderDetailsSection";
 import { PayBar } from "./sections/PayBar";
 import { ReceiptSection } from "./sections/ReceiptSection";
@@ -39,7 +39,6 @@ import { computeTotals, resolveCourseFromParams } from "./utils";
 
 import {
     useCreateOrderMutation,
-    useGetCheckoutQuoteQuery,
     useVerifyPaymentMutation,
     type CreateOrderResult,
     type PlanUrlId,
@@ -121,23 +120,6 @@ export function CheckoutPage() {
     const courseId = resolved?.course.courseId ?? "";
     const planUrlId: PlanUrlId = (resolved?.plan ?? "year") as PlanUrlId;
 
-    /* ---------- State ---------- */
-
-    const [plan, setPlan] = useState<PlanType>(() => resolved?.plan ?? "year");
-    const [channel, setChannel] = useState<OTPChannel>(DEFAULT_OTP_CHANNEL);
-    const [phone, setPhone] = useState("");
-    const [email, setEmail] = useState("");
-    const [verifiedBy, setVerifiedBy] = useState<VerifiedBy>(null);
-    const [submitting, setSubmitting] = useState(false);
-    const [errors, setErrors] = useState<CheckoutErrors>(EMPTY_ERRORS);
-    const [modal, setModal] = useState<CheckoutModal>(null);
-    const [sending, setSending] = useState(false);
-    const [emailLinkSent, setEmailLinkSent] = useState(false);
-
-    // One idempotency key per checkout attempt. Regenerated when the user
-    // retries after Razorpay dismisses the modal or a terminal error.
-    const idempotencyKeyRef = useRef<string>(crypto.randomUUID());
-
     /* ---------- Auth ---------- */
 
     const authState = useAuth();
@@ -146,17 +128,28 @@ export function CheckoutPage() {
         usePhoneVerification("recaptcha-container");
     const { sendLink } = useEmailLink();
 
+    /* ---------- State ---------- */
+
+    const [plan, setPlan] = useState<PlanType>(() => resolved?.plan ?? "year");
+    const [channel, setChannel] = useState<OTPChannel>(DEFAULT_OTP_CHANNEL);
+    const [phone, setPhone] = useState<string>("");
+    const [email, setEmail] = useState<string>("");
+    const [verifiedBy, setVerifiedBy] = useState<VerifiedBy>(null);
+    const [submitting, setSubmitting] = useState<boolean>(false);
+    const [errors, setErrors] = useState<CheckoutErrors>(EMPTY_ERRORS);
+    const [modal, setModal] = useState<CheckoutModal>(null);
+    const [sending, setSending] = useState<boolean>(false);
+    const [emailLinkSent, setEmailLinkSent] = useState<boolean>(false);
+
+    // One idempotency key per checkout attempt. Regenerated when the user
+    // retries after Razorpay dismisses the modal or a terminal error.
+    const idempotencyKeyRef = useRef<string>(crypto.randomUUID());
+
+
+
     /* ---------- Backend quote (authoritative price) ---------- */
 
-    const {
-        data: quote,
-        isLoading: quoteLoading,
-        error: quoteError,
-        refetch: refetchQuote,
-    } = useGetCheckoutQuoteQuery(
-        { courseId, plan: planUrlId },
-        { skip: !courseId || verifiedBy === null },
-    );
+
 
     const alreadyEnrolled = false;
     const subtotal = resolved?.planData.price ?? 0;
@@ -307,9 +300,7 @@ export function CheckoutPage() {
             verifiedBy === null ||
             !product ||
             !planData ||
-            quoteLoading ||
-            alreadyEnrolled ||
-            !!quoteError
+            alreadyEnrolled
         ) {
             return;
         }
@@ -324,14 +315,13 @@ export function CheckoutPage() {
                 plan: planUrlId,
                 idempotencyKey: idempotencyKeyRef.current,
             }).unwrap();
-            if(!result.success) throw new Error("No order returned from backend");
+            if (!result.success) throw new Error("No order returned from backend");
             order = result.data;
         } catch (err) {
             setSubmitting(false);
             const code = (err as { data?: { error?: { code?: string } } })?.data
                 ?.error?.code;
             if (code === "ALREADY_ENROLLED") {
-                refetchQuote();
                 return;
             }
             setModal({
@@ -344,8 +334,6 @@ export function CheckoutPage() {
             return;
         }
 
-        console.log("log-[razorpay order]", order);
-
         const rzp = new window.Razorpay({
             key: import.meta.env.VITE_RAZORPAY_KEY_ID,
             order_id: order.razorpayOrderId,
@@ -356,12 +344,7 @@ export function CheckoutPage() {
             prefill: order.prefill,
             theme: { color: "#4f46e5" }, // indigo-600
             handler: async (response) => {
-                console.log("log-[verify payload]", response, {
-                    orderId: order.orderId,
-                    razorpayOrderId: response.razorpay_order_id,
-                    razorpayPaymentId: response.razorpay_payment_id,
-                    razorpaySignature: response.razorpay_signature,
-                });
+
                 try {
                     const verified = await verifyPayment({
                         orderId: order.orderId,
@@ -420,15 +403,12 @@ export function CheckoutPage() {
         verifiedBy,
         product,
         planData,
-        quoteLoading,
         alreadyEnrolled,
-        quoteError,
         courseId,
         planUrlId,
         createOrder,
         verifyPayment,
         navigate,
-        refetchQuote,
     ]);
 
     /* ---------- Redirect if the URL is invalid ---------- */
@@ -443,7 +423,7 @@ export function CheckoutPage() {
         <div className="min-h-screen flex flex-col lg:grid lg:grid-cols-2 bg-white pb-[150px] lg:pb-0">
             {/* LEFT COLUMN */}
             <section className="max-lg:contents lg:block lg:bg-white lg:pb-10">
-                <CheckoutHeader />
+                {/* <CheckoutHeader /> */}
 
                 <OrderDetailsSection
                     product={product}
@@ -451,7 +431,7 @@ export function CheckoutPage() {
                     onSelectPlan={handleSelectPlan}
                 />
 
-                {/* CouponSection / GstSection hidden in Phase 4 (out of scope). */}
+
             </section>
 
             {/* RIGHT COLUMN */}
@@ -472,18 +452,14 @@ export function CheckoutPage() {
                 />
                 <div id="recaptcha-container" />
 
-                {quoteError && (
-                    <p className="mt-[16px] px-[15px] lg:px-0 lg:max-w-[400px] lg:ml-[57px] text-[13px] text-rose-500">
-                        Couldn't load pricing. Please refresh the page.
-                    </p>
-                )}
+
 
                 {alreadyEnrolled && (
                     <div className="mt-[16px] px-[15px] lg:px-0 lg:max-w-[400px] lg:ml-[57px]">
                         <p className="text-[14px] text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-lg p-3">
                             You already own this course.{" "}
                             <a
-                                href={`/course/${quote?.course.slug ?? ""}`}
+                                href={`/course/}`}
                                 className="font-medium text-emerald-800 underline"
                             >
                                 Go to course
@@ -497,7 +473,7 @@ export function CheckoutPage() {
                 <PayBar
                     total={totals.total}
                     disabled={
-                        verifiedBy === null || quoteLoading || alreadyEnrolled || !!quoteError
+                        verifiedBy === null || alreadyEnrolled
                     }
                     submitting={submitting}
                     onPay={handlePay}

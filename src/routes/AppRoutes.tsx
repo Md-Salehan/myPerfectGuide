@@ -11,7 +11,7 @@
 // built — see paths.ts for the naming convention.
 // ============================================================
 
-import {  Route, Routes } from "react-router-dom";
+import { Route, Routes } from "react-router-dom";
 
 import { MainLayout } from "../layouts/MainLayout";
 
@@ -30,7 +30,6 @@ import { SuccessPage } from "../pages/checkout/SuccessPage";
 export function AppRoutes() {
   return (
     <Routes>
-      <Route path={ROUTES.CHECKOUT} element={<CheckoutPage />} />
 
       <Route element={<MainLayout />}>
         <Route index path={ROUTES.HOME} element={<HomePage />} />
@@ -43,6 +42,8 @@ export function AppRoutes() {
 
         <Route path={ROUTES.ABOUT} element={<AboutUsPage />} />
         <Route path={ROUTES.CONTACT} element={<ContactUsPage />} />
+        <Route path={ROUTES.CHECKOUT} element={<CheckoutPage />} />
+
         <Route path={ROUTES.AUTH_EMAIL_LINK} element={<EmailLinkPage />} />
         <Route path={ROUTES.CHECKOUT_SUCCESS} element={<SuccessPage />} />
         {/* <Route path="*" element={<Navigate to={ROUTES.COURSE_1} replace />} /> */}

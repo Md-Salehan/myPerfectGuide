@@ -8,8 +8,8 @@
 //   - components/layout/Header.tsx
 // ============================================================
 
-import { ROUTES } from "../routes/paths";
-import type { NavLink } from "../types/common";
+// import { ROUTES } from "../routes/paths";
+// import type { NavLink } from "../types/common";
 
 /**
  * Desktop navigation links.
@@ -24,41 +24,41 @@ import type { NavLink } from "../types/common";
  * "Log In" is rendered separately in the Header as a primary
  * CTA button, so it is not part of this list.
  */
-export const NAV_LINKS: readonly NavLink[] = [
-  {
-    label: "All Courses",
-    href: import.meta.env.BASE_URL + ROUTES.ALL_COURSES,
-    variant: "primary",
-    hasDropdown: true,
-  },
-  // {
-  //   label: "AI Course",
-  //   href: "#",
-  //   variant: "highlight",
-  //   badge: "NEW",
-  // },
-  // {
-  //   label: "Placements",
-  //   href: "#",
-  //   variant: "plain",
-  // },
-  // {
-  //   label: "Resources",
-  //   href: "#",
-  //   variant: "plain",
-  //   hasDropdown: true,
-  // },
-  {
-    label: "About Us",
-    href: import.meta.env.BASE_URL + ROUTES.ABOUT,
-    variant: "plain",
-  },
-  {
-    label: "Request Callback",
-    href: import.meta.env.BASE_URL + ROUTES.ABOUT,
-    variant: "plain",
-  },
-] as const;
+// export const NAV_LINKS: readonly NavLink[] = [
+//   {
+//     label: "All Courses",
+//     href: import.meta.env.BASE_URL + ROUTES.ALL_COURSES,
+//     variant: "primary",
+//     hasDropdown: true,
+//   },
+//   // {
+//   //   label: "AI Course",
+//   //   href: "#",
+//   //   variant: "highlight",
+//   //   badge: "NEW",
+//   // },
+//   // {
+//   //   label: "Placements",
+//   //   href: "#",
+//   //   variant: "plain",
+//   // },
+//   // {
+//   //   label: "Resources",
+//   //   href: "#",
+//   //   variant: "plain",
+//   //   hasDropdown: true,
+//   // },
+//   {
+//     label: "About Us",
+//     href: import.meta.env.BASE_URL + ROUTES.ABOUT,
+//     variant: "plain",
+//   },
+//   // {
+//   //   label: "Request Callback",
+//   //   href: import.meta.env.BASE_URL + ROUTES.ABOUT,
+//   //   variant: "plain",
+//   // },
+// ] as const;
 
 /**
  * Mobile menu links.
@@ -75,26 +75,26 @@ export const NAV_LINKS: readonly NavLink[] = [
  * list. Chevrons are not rendered in the mobile panel, so
  * `hasDropdown` is intentionally omitted here.
  */
-export const MOBILE_NAV_LINKS: readonly NavLink[] = [
-  {
-    label: "All Courses",
-    href: import.meta.env.BASE_URL + ROUTES.ALL_COURSES,
-    variant: "highlight",
-  },
+// export const MOBILE_NAV_LINKS: readonly NavLink[] = [
+//   {
+//     label: "All Courses",
+//     href: import.meta.env.BASE_URL + ROUTES.ALL_COURSES,
+//     variant: "highlight",
+//   },
 
-  {
-    label: "About Us",
-    href: import.meta.env.BASE_URL + ROUTES.ABOUT,
-    variant: "plain",
-  },
-  // {
-  //   label: "Terms & Conditions",
-  //   href: import.meta.env.VITE_API_BASE_URL + ROUTES.TERMS,
-  //   variant: "plain",
-  // },
-  {
-    label: "Request Callback",
-    href: "#",
-    variant: "plain",
-  },
-] as const;
+//   {
+//     label: "About Us",
+//     href: import.meta.env.BASE_URL + ROUTES.ABOUT,
+//     variant: "plain",
+//   },
+//   // {
+//   //   label: "Terms & Conditions",
+//   //   href: import.meta.env.VITE_API_BASE_URL + ROUTES.TERMS,
+//   //   variant: "plain",
+//   // },
+//   {
+//     label: "Request Callback",
+//     href: "#",
+//     variant: "plain",
+//   },
+// ] as const;

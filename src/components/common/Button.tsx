@@ -47,7 +47,7 @@ interface BaseProps {
  */
 type ButtonAsButtonProps = BaseProps & {
   href?: undefined;
-} & Omit<ButtonHTMLAttributes<HTMLButtonElement>, "className" | "children">;
+} & Omit<ButtonHTMLAttributes<HTMLButtonElement>, "className" | "children" >;
 
 type ButtonAsAnchorProps = BaseProps & {
   href: string;
