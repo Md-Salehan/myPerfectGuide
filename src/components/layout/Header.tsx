@@ -437,7 +437,7 @@ function DesktopNavItem({
               >
                 {item.label}
               </button>
-            ))}
+            ))} 
             </div>
           </div>
         )}
